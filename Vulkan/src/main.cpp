@@ -1,12 +1,8 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <glm/vec4.hpp>
-#include <glm/mat4x4.hpp>
-
 #include <iostream>
+#include <vector>
 
 class HelloTriangleApplication
 {
@@ -34,7 +30,7 @@ private:
     }
     void cleanup()
     {
-        
+        vkDestroyInstance(m_vulkanInstance, nullptr);
     }
     void createInstance()
     {
@@ -91,5 +87,25 @@ int main() {
         std::cerr << e.what() << std::endl;
         return EXIT_FAILURE;
     }
+    //in this way you can get the instance-avaliable extension name
+    //important! extension((uint32_t)2) there must be (uint32) if use int will get wrong result
+    //you can first use way one to get total count of extension
+    //
+    uint32_t totalExtensionCount = 2;
+    //first way get the suitable count of extension
+    {
+        vkEnumerateInstanceExtensionProperties(nullptr, &totalExtensionCount, nullptr);
+        std::vector<VkExtensionProperties> extension(totalExtensionCount);
+        vkEnumerateInstanceExtensionProperties(nullptr, &totalExtensionCount, extension.data());
+    }
+    //second way may be not suit
+    std::vector<VkExtensionProperties> extension((uint32_t)2);
+    vkEnumerateInstanceExtensionProperties(nullptr, &totalExtensionCount, extension.data());
+
+    for (auto& v : extension)
+    {
+        std::cout << v.extensionName << std::endl;
+    }
+    std::cout << totalExtensionCount << std::endl;
     return EXIT_SUCCESS;
 }

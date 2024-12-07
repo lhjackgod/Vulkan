@@ -2,7 +2,7 @@
 #include <GLFW/glfw3.h>
 #include <vector>
 #include <iostream>
-
+#include <optional>
 
 VKAPI_ATTR VkResult VKAPI_CALL CreateDebugUtilsMessengerEXT(
 	VkInstance                                  instance,
@@ -32,6 +32,14 @@ VKAPI_ATTR void VKAPI_CALL DestroyDebugUtilsMessengerEXT(
 		func(instance, messenger, pAllocator);
 	}
 }
+struct QueueFamilyIndices
+{
+	std::optional<uint32_t> graphicsFamily;
+	bool isComplete()
+	{
+		return graphicsFamily.has_value();
+	}
+};
 class Device
 {
 public:
@@ -162,7 +170,34 @@ private:
 	}
 	bool isDeviceSuitable(VkPhysicalDevice device)
 	{
-		return true;
+		QueueFamilyIndices queueFamily = findQueueFamilies(device);
+		//then we can judge whether the device's queues have the one can deal with 
+		//the problems
+
+		return queueFamily.isComplete();
+	}
+	
+	QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device)
+	{
+		QueueFamilyIndices indices;
+		uint32_t queueFamilyCount = 0;
+		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+
+		std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+		//We need to find at least one queue family that supports VK_QUEUE_GRAPHICS_BIT.
+		uint32_t i = 0;
+		for (const auto& queueFamily : queueFamilies)
+		{
+			//if the queue can deal with graphics
+			if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+			{
+				indices.graphicsFamily = i;
+				break;
+			}
+			i++;
+		}
+		return indices;
 	}
 private:
 #define NDEBUG
@@ -178,6 +213,14 @@ private:
 	VkInstance m_vulkanInstace;
 	VkDebugUtilsMessengerEXT debugMessenger;
 	VkPhysicalDevice m_PhysicalDevice;
+
+	/*
+	* in vulkan the orther must be in a queue
+	* so we must to find a queue to include the command
+	* but 0 also have it mean in vulkan , so we need to use optional
+	* 
+	*/
+	
 };
 
 int main()

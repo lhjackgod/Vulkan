@@ -59,12 +59,11 @@ private:
         createInstance();
         setupDebugMessenger();
     }
-    void setupDebugMessenger()
+    void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo)
     {
         //this structure include the parameter the function has set
         //if you set in this info, vulkan can filter the type which only has the parameters you have
-        if (!enableValidationLayers) return;
-        VkDebugUtilsMessengerCreateInfoEXT createInfo{};
+        createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
         createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
             VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
@@ -73,7 +72,13 @@ private:
             VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
         createInfo.pfnUserCallback = debugCallback;
         createInfo.pUserData = nullptr;
-
+    }
+    void setupDebugMessenger()
+    {
+        
+        if (!enableValidationLayers) return;
+        VkDebugUtilsMessengerCreateInfoEXT createInfo{};
+        populateDebugMessengerCreateInfo(createInfo);
         //after you create instance ,you can use instance to create vkDebugUtilsMessagerEXT 
         VkResult result = CreateDebugUtilsMessengerEXT(m_vulkanInstance,
             &createInfo, nullptr,
@@ -93,7 +98,7 @@ private:
         //we can also destroy the debugMessenger
         if (enableValidationLayers)
         {
-            DestroyDebugUtilsMessengerEXT(m_vulkanInstance, debugMessager, nullptr);
+            //DestroyDebugUtilsMessengerEXT(m_vulkanInstance, debugMessager, nullptr);
         }
         /*vkDestroyDebugUtilsMessengerEXT()*/
         vkDestroyInstance(m_vulkanInstance, nullptr);
@@ -119,19 +124,43 @@ private:
         createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
         createInfo.pApplicationInfo = &appinfo;
 
+
+
         auto extensions = getRequireExtensions();
         createInfo.enabledExtensionCount = (uint32_t)extensions.size();
         createInfo.ppEnabledExtensionNames = extensions.data();
 
-        createInfo.enabledLayerCount = 0;
-        //if we can use the valid layer we should include it to the createInfo
-        //but the enabledLayerCount also not only for the validLayer
+
+        VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
         if (enableValidationLayers)
         {
-            createInfo.enabledLayerCount = validationLayers.size();
-            createInfo.ppEnabledLayerNames = validationLayers.data();
-        }
 
+            //if we can use the valid layer we should include it to the createInfo
+            //but the enabledLayerCount also not only for the validLayer
+            createInfo.enabledLayerCount = (uint32_t)validationLayers.size();
+            createInfo.ppEnabledLayerNames = validationLayers.data();
+
+            populateDebugMessengerCreateInfo(debugCreateInfo);
+            createInfo.pNext = &debugCreateInfo;
+            /*
+            * 就像前面提到的VkDebugUtilsMessengerCreateInfoEXT结构体，
+            通过将其指针放在VkInstanceCreateInfo的pNext字段，
+            可以在创建实例的同时，
+            为调试工具消息信使（Debug Utils Messenger）配置相关信息，
+            使得在实例创建阶段就能够为调试功能做好准备。
+            可以将多个不同的扩展信息结构体通过pNext字段链接成一个链表结构。
+            每个结构体的第一个成员通常是一个VkStructureType类型的字段，
+            用于标识结构体的类型，以及一个pNext字段用于指向下一个扩展信息结构体。
+            这种链式结构使得可以同时传递多个不同类型的扩展信息，以满足复杂的应用需求。
+            */
+        }
+        else
+        {
+            createInfo.enabledLayerCount = 0;
+            createInfo.pNext = nullptr;
+            
+        }
+        
         //now we have the necessary info for creating instance
         VkResult result = vkCreateInstance(&createInfo, nullptr, &m_vulkanInstance);
         if (result != VK_SUCCESS)
@@ -205,8 +234,9 @@ private:
         //you can use this way to show the message whose severity is bigger than you set 
         if (messageServerity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
         {
-            std::cerr << "error" << std::endl;
+            std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
         }
+        
         return VK_FALSE;
     }
 private:

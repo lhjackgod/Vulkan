@@ -66,6 +66,13 @@ private:
         createInfo.enabledExtensionCount = glfwExtensionCount;
         createInfo.ppEnabledExtensionNames = glfwExtensions;
         createInfo.enabledLayerCount = 0;
+        //if we can use the valid layer we should include it to the createInfo
+        //but the enabledLayerCount also not only for the validLayer
+        if (enableValidationLayers)
+        {
+            createInfo.enabledLayerCount = validationLayers.size();
+            createInfo.ppEnabledLayerNames = validationLayers.data();
+        }
 
         //now we have the necessary info for creating instance
         VkResult result = vkCreateInstance(&createInfo, nullptr, &m_vulkanInstance);

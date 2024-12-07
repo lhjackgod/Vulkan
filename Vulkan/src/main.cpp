@@ -3,7 +3,7 @@
 
 #include <iostream>
 #include <vector>
-
+#include <cstring>
 class HelloTriangleApplication
 {
 public:
@@ -34,6 +34,12 @@ private:
     }
     void createInstance()
     {
+        //check if the valid layer can be used
+        if (enableValidationLayers && !checkValidationLayerSupport())
+        {
+            throw std::runtime_error("validation layers requested, but not available!");
+        }
+
         //the message in vulkan deliver through struct
         VkApplicationInfo appinfo{};
         appinfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -68,9 +74,44 @@ private:
             throw std::runtime_error("error to create instance!");
         }
     }
+    bool checkValidationLayerSupport()
+    {
+        //in this part we can get total avaliable layers we can use
+        uint32_t layerCount;
+        vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+        std::vector<VkLayerProperties>  avaliableLayer(layerCount);
+        vkEnumerateInstanceLayerProperties(&layerCount, avaliableLayer.data());
+
+        //from now we check whether the layers, we set can be used
+        for (const char* layerName : validationLayers)
+        {
+            bool hasIncluded = false;
+            for (VkLayerProperties& avali : avaliableLayer)
+            {
+                if (strcmp(layerName, avali.layerName) == 0)
+                {
+                    hasIncluded = true;
+                    break;
+                }
+                if (!hasIncluded)
+                    return false;
+            }
+        }
+        return true;
+    }
 private:
     const uint32_t WIDTH = 800;
     const uint32_t HEIGHT = 600;
+
+    const std::vector<const char*> validationLayers = {
+        "VK_LAYER_KHRONOS_validation"
+    };
+#ifdef NDEBUG
+    cosnt bool enableValidationLayers = true;
+#else
+    const bool enableValidationLayers = false;
+#endif
+
     GLFWwindow* m_Window;
     VkInstance m_vulkanInstance;
 };
@@ -87,25 +128,6 @@ int main() {
         std::cerr << e.what() << std::endl;
         return EXIT_FAILURE;
     }
-    //in this way you can get the instance-avaliable extension name
-    //important! extension((uint32_t)2) there must be (uint32) if use int will get wrong result
-    //you can first use way one to get total count of extension
-    //
-    uint32_t totalExtensionCount = 2;
-    //first way get the suitable count of extension
-    {
-        vkEnumerateInstanceExtensionProperties(nullptr, &totalExtensionCount, nullptr);
-        std::vector<VkExtensionProperties> extension(totalExtensionCount);
-        vkEnumerateInstanceExtensionProperties(nullptr, &totalExtensionCount, extension.data());
-    }
-    //second way may be not suit
-    std::vector<VkExtensionProperties> extension((uint32_t)2);
-    vkEnumerateInstanceExtensionProperties(nullptr, &totalExtensionCount, extension.data());
 
-    for (auto& v : extension)
-    {
-        std::cout << v.extensionName << std::endl;
-    }
-    std::cout << totalExtensionCount << std::endl;
     return EXIT_SUCCESS;
 }

@@ -38,10 +38,13 @@ VKAPI_ATTR void VKAPI_CALL DestroyDebugUtilsMessengerEXT(
 struct QueueFamilyIndex
 {
 	std::optional<uint32_t> indices;
-
+	std::optional<uint32_t> presentFamily;//because of that we have chose the 
+	//device which can support graphics but maybe it can't support show the image on the
+	//surface we created
+	//so we need to chose both needings have
 	bool hasValue()
 	{
-		return indices.has_value();
+		return indices.has_value() && presentFamily.has_value();
 	}
 };
 class Presentation
@@ -222,6 +225,15 @@ private:
 			if (queue.queueFlags & VK_QUEUE_GRAPHICS_BIT)
 			{
 				index.indices = indices;
+			}
+			VkBool32 presentationSupport = false;
+			vkGetPhysicalDeviceSurfaceSupportKHR(device, indices, m_Surface, &presentationSupport);
+			if (presentationSupport)
+			{
+				index.presentFamily = indices;
+			}
+			if (index.hasValue())
+			{
 				break;
 			}
 			indices++;

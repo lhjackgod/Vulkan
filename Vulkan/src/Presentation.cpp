@@ -1,8 +1,6 @@
-#define VK_USE_PLATFORM_WIN32_KHR // specific for windows
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
-#define GLFW_EXPOSE_NATIVE_WIN32 // specific for window
-#include <GLFW/glfw3native.h> //specific for window
+
 #include <iostream>
 #include <vector>
 #include <optional>
@@ -271,13 +269,9 @@ private:
 	}
 	void createSurface()
 	{
-		//this option only for window
-		VkWin32SurfaceCreateInfoKHR createInfo{};
-		createInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-		createInfo.hinstance = GetModuleHandle(nullptr);
-		createInfo.hwnd = glfwGetWin32Window(window);
-
-		if (vkCreateWin32SurfaceKHR(m_Instance, &createInfo, nullptr, &m_Surface)!=VK_SUCCESS)
+		//now we use a way that no specific for any platform, 
+		//as glfwcreatewindowsurface will help to delete this different
+		if (glfwCreateWindowSurface(m_Instance, window, nullptr, &m_Surface) != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to create window surface");
 		}

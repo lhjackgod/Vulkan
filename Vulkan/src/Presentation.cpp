@@ -4,6 +4,7 @@
 #include <iostream>
 #include <vector>
 #include <optional>
+#include <set>
 
 VKAPI_ATTR VkResult VKAPI_CALL CreateDebugUtilsMessengerEXT(
 	VkInstance                                  instance,
@@ -260,24 +261,35 @@ private:
 		{
 			createInfo.enabledLayerCount = 0;
 		}
+
 		VkPhysicalDeviceFeatures physicalDeviceFeatures{};
 		createInfo.pEnabledFeatures = &physicalDeviceFeatures;
 
-		VkDeviceQueueCreateInfo deviceCreateInfo{};
-		deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		deviceCreateInfo.queueCount = 1;
 		QueueFamilyIndex index = GetQueueFamilyIndex(m_PhysicalDevice);
+		//because the families might be the same one
+		std::set<uint32_t> queueFamilyIndices{ index.indices.value(), index.presentFamily.value() };
+		//create Multi_FamilyQueue
+		std::vector<VkDeviceQueueCreateInfo> deviceCreateInfos;
 		const float priority = 1.0f;
-		deviceCreateInfo.pQueuePriorities = &priority;
-		deviceCreateInfo.queueFamilyIndex = index.indices.value();
-		createInfo.pQueueCreateInfos = &deviceCreateInfo;
-		createInfo.queueCreateInfoCount = 1;
+		for (auto& queueFamilyindex : queueFamilyIndices)
+		{
+			VkDeviceQueueCreateInfo queueFamilyCreateInfo{};
+			queueFamilyCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+			queueFamilyCreateInfo.queueCount = 1;
+			queueFamilyCreateInfo.pQueuePriorities = &priority;
+			queueFamilyCreateInfo.queueFamilyIndex = queueFamilyindex;
+			deviceCreateInfos.push_back(queueFamilyCreateInfo);
+		}
+
+		createInfo.queueCreateInfoCount = (uint32_t) deviceCreateInfos.size();
+		createInfo.pQueueCreateInfos = deviceCreateInfos.data();
 
 		if (vkCreateDevice(m_PhysicalDevice, &createInfo, nullptr, &m_LogicalDevice) != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to create logical device");
 		}
 		vkGetDeviceQueue(m_LogicalDevice, index.indices.value(), 0, &m_queue);
+		vkGetDeviceQueue(m_LogicalDevice, index.presentFamily.value(), 0, &m_presentQueue);
 	}
 	void createSurface()
 	{
@@ -302,6 +314,7 @@ private:
 	VkDevice m_LogicalDevice;
 	VkDebugUtilsMessengerEXT m_DebugMessenger;
 	VkQueue m_queue;
+	VkQueue m_presentQueue;
 	std::vector<const char*> validLayer
 	{
 		"VK_LAYER_KHRONOS_validation"

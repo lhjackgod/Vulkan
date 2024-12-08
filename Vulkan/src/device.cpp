@@ -55,12 +55,15 @@ private:
 	void cleanUp()
 	{
 		DestroyDebugUtilsMessengerEXT(m_vulkanInstace, debugMessenger, nullptr);
+		vkDestroyDevice(logicDevice, nullptr);
 		vkDestroyInstance(m_vulkanInstace, nullptr);
 	}
 	void initVulkan()
 	{
 		createInstace();
 		setupDebugMessager();
+		pickPhysicalDevice();
+		createLogicalDevice();
 	}
 	void createInstace()
 	{
@@ -199,6 +202,55 @@ private:
 		}
 		return indices;
 	}
+	void createLogicalDevice()
+	{
+		QueueFamilyIndices indices = findQueueFamilies(m_PhysicalDevice);
+
+		VkDeviceQueueCreateInfo queueCreateInfo{};
+		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
+		queueCreateInfo.queueCount = 1;//because we just want a queue, can the logical device is depend on physics
+
+		//in a logical device has many queues, we must to set the priority
+		//for ever queue
+		float queuePriority = 1.0;
+		queueCreateInfo.pQueuePriorities = &queuePriority;
+		//we finish one queue for the logical device
+
+		//specifying used device features
+		VkPhysicalDeviceFeatures deviceFeatures{};
+
+
+		VkDeviceCreateInfo createInfo{};
+		createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+		createInfo.pQueueCreateInfos = &queueCreateInfo;
+		createInfo.queueCreateInfoCount = 1;
+
+		createInfo.pEnabledFeatures = &deviceFeatures;
+
+		//the device also have it extensions and layer
+		//but the new implementations have no layer, but it still a good idea to set them
+		//We won't need any device specific extensions for now.
+		createInfo.enabledExtensionCount = 0;
+
+		if (enableValidLayer)
+		{
+			createInfo.enabledLayerCount = (uint32_t) vaildLayer.size();
+			createInfo.ppEnabledLayerNames = vaildLayer.data();
+		}
+		else 
+		{
+			createInfo.enabledLayerCount = 0;
+		}
+
+		if (vkCreateDevice(m_PhysicalDevice, &createInfo, nullptr, &logicDevice) != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to create logical device");
+		}
+		//why zero ,this index is the index in the family what we chose, but in this case we only have one queue
+		//so we just need to use the first index of out chose
+		vkGetDeviceQueue(logicDevice, indices.graphicsFamily.value(), 0, &graphicsQueue);
+	}
 private:
 #define NDEBUG
 #ifdef NDEBUG
@@ -213,14 +265,22 @@ private:
 	VkInstance m_vulkanInstace;
 	VkDebugUtilsMessengerEXT debugMessenger;
 	VkPhysicalDevice m_PhysicalDevice;
-
+	VkDevice logicDevice;
 	/*
 	* in vulkan the orther must be in a queue
 	* so we must to find a queue to include the command
 	* but 0 also have it mean in vulkan , so we need to use optional
 	* 
 	*/
-	
+	/*
+	* The queues are automatically created along with the logical device, 
+	but we don't have a handle to interface with them yet. 
+	First add a class member to store a handle to the graphics queue:
+
+	Device queues are implicitly cleaned up when the device is destroyed, 
+	so we don't need to do anything in cleanup.
+	*/
+	VkQueue graphicsQueue;
 };
 
 int main()

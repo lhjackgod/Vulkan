@@ -462,6 +462,12 @@ private:
 		{
 			throw std::runtime_error("failed to create swap chain!");
 		}
+		uint32_t pSwapchainImageCount;
+		vkGetSwapchainImagesKHR(m_LogicalDevice, m_swapChain, &pSwapchainImageCount, nullptr);
+		m_swapChainImages.resize(pSwapchainImageCount);
+		vkGetSwapchainImagesKHR(m_LogicalDevice, m_swapChain, &pSwapchainImageCount, m_swapChainImages.data());
+		m_swapChainImageFormat = surfaceFormat.format;
+		m_swapChainExtent = extent;
 	}
 private:
 #define NDEBUG
@@ -489,6 +495,9 @@ private:
 	const std::vector<const char*> deviceExtensions = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME
 	};
+	std::vector<VkImage> m_swapChainImages;
+	VkFormat m_swapChainImageFormat;
+	VkExtent2D m_swapChainExtent;
 };
 
 int main()

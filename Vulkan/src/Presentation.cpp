@@ -269,12 +269,12 @@ private:
 	{
 		VkDeviceCreateInfo createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-		createInfo.enabledExtensionCount = 0;
+		createInfo.enabledExtensionCount = 1;
+		createInfo.ppEnabledExtensionNames = deviceExtensions.data();
 		if (enableValidation)
 		{
 			createInfo.enabledLayerCount = (uint32_t)validLayer.size();
 			createInfo.ppEnabledLayerNames = validLayer.data();
-
 		}
 		else
 		{

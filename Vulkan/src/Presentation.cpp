@@ -6,6 +6,7 @@
 #include <optional>
 #include <set>
 #include <algorithm>
+#include <fstream>
 
 VKAPI_ATTR VkResult VKAPI_CALL CreateDebugUtilsMessengerEXT(
 	VkInstance                                  instance,
@@ -148,6 +149,7 @@ private:
 		createLogicalDevice();
 		createSwapSurface();
 		createSwapChainImageViews();
+		createGraphicsPipeline();
 	}
 	void createGLfWWindow()
 	{
@@ -499,6 +501,58 @@ private:
 				throw std::runtime_error("failed to create image view");
 			}
 		}
+	}
+	static std::vector<char> readFile(const std::string& Filename)
+	{
+		std::ifstream file(Filename, std::ios::ate | std::ios::binary);
+		if (!file.is_open())
+		{
+			throw std::runtime_error("failed to open file!");
+		}
+		size_t fileSize = (size_t)file.tellg();
+		std::vector<char> buffer(fileSize);
+		file.seekg(0);
+		file.read(buffer.data(), fileSize);
+
+		file.close();
+		return buffer;
+	}
+	VkShaderModule createShaderModule(const std::vector<char>& code)
+	{
+		VkShaderModuleCreateInfo createInfo{};
+		createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		createInfo.codeSize = code.size();
+		createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+		VkShaderModule shaderModule;
+		if (vkCreateShaderModule(m_LogicalDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to create shader module!");
+		}
+		return shaderModule;
+	}
+	void createGraphicsPipeline()
+	{
+		auto verShaderCode = readFile("src/shader/vert.spv");
+		auto fragShaderCode = readFile("src/shader/frag.spv");
+
+		VkShaderModule verShaderModule = createShaderModule(verShaderCode);
+		VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+		VkPipelineShaderStageCreateInfo verShaderCreateInfo{};
+		verShaderCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		verShaderCreateInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+		verShaderCreateInfo.module = verShaderModule;
+		verShaderCreateInfo.pName = "main";
+		
+		VkPipelineShaderStageCreateInfo fragShaderCreateInfo{};
+		fragShaderCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		fragShaderCreateInfo.pName = "main";
+		fragShaderCreateInfo.module = fragShaderModule;
+		fragShaderCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+		VkPipelineShaderStageCreateInfo shaderStages[]{verShaderCreateInfo, fragShaderCreateInfo};
+
+		vkDestroyShaderModule(m_LogicalDevice, verShaderModule, nullptr);
+		vkDestroyShaderModule(m_LogicalDevice, fragShaderModule, nullptr);
 	}
 private:
 #define NDEBUG

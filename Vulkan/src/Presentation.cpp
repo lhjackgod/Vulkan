@@ -125,8 +125,10 @@ private:
 	void clearUp()
 	{
 		DestroyDebugUtilsMessengerEXT(m_Instance, m_DebugMessenger, nullptr);
+		vkDestroySwapchainKHR(m_LogicalDevice, m_swapChain, nullptr);
 		vkDestroyDevice(m_LogicalDevice, nullptr);
 		vkDestroySurfaceKHR(m_Instance, m_Surface, nullptr);
+		
 		vkDestroyInstance(m_Instance, nullptr);
 
 		glfwDestroyWindow(window);
@@ -140,6 +142,8 @@ private:
 		createSurface();
 		pickPhysicalDevice();
 		createLogicalDevice();
+		createSwapSurface();
+		
 	}
 	void createGLfWWindow()
 	{
@@ -309,12 +313,14 @@ private:
 		vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_Surface, &formatKHRCount, nullptr);
 		if (formatKHRCount)
 		{
+			details.formats.resize(formatKHRCount);
 			vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_Surface, &formatKHRCount, details.formats.data());
 		}
 		uint32_t presentationModesCount;
 		vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_Surface, &presentationModesCount, nullptr);
 		if (presentationModesCount)
 		{
+			details.presentModes.resize(presentationModesCount);
 			vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_Surface, &presentationModesCount, details.presentModes.data());
 		}
 		return details;//this also the necessary for window show
@@ -404,6 +410,59 @@ private:
 			throw std::runtime_error("failed to create window surface");
 		}
 	}
+	void createSwapSurface()
+	{
+		//first we need to get the device's swapchainSupportdetails
+		SwapChainSupportDetails details = queueSwapChainSupport(m_PhysicalDevice);
+
+		//the suitable detail
+		VkExtent2D extent = chooseSwapExten(window, details.capabilities);
+		VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(details.formats);
+		VkPresentModeKHR presentMode = chooseSwapSurfacePresentMode(details.presentModes);
+		//the information to create swapChain
+		VkSwapchainCreateInfoKHR createInfo{};
+		createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+		createInfo.surface = m_Surface;
+		createInfo.imageExtent = extent;
+		createInfo.imageColorSpace = surfaceFormat.colorSpace;
+		createInfo.imageFormat = surfaceFormat.format;
+		createInfo.imageArrayLayers = 1;
+		createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		uint32_t imageCount = details.capabilities.minImageCount + 1;
+
+		if (details.capabilities.maxImageCount > 0 && imageCount > details.capabilities.maxImageCount)
+		{
+			imageCount = details.capabilities.maxImageCount;
+		}
+		createInfo.minImageCount = imageCount;
+		createInfo.presentMode = presentMode;
+		createInfo.clipped = VK_TRUE;
+		createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+
+		QueueFamilyIndex queueFamilyindices = GetQueueFamilyIndex(m_PhysicalDevice);
+		uint32_t queueFamily[]{ queueFamilyindices.indices.value(), queueFamilyindices.presentFamily.value() };
+		if (queueFamilyindices.indices != queueFamilyindices.presentFamily)
+		{
+			createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+			createInfo.pQueueFamilyIndices = queueFamily;
+			createInfo.queueFamilyIndexCount = 2;
+		}
+		else 
+		{
+			createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+			createInfo.queueFamilyIndexCount = 0;
+			createInfo.pQueueFamilyIndices = nullptr;//because in the mode of VK_SHARING_MODE_EXCLUSIVE
+			//the swapchain need not to set the queueFamily
+
+		}
+		createInfo.oldSwapchain = VK_NULL_HANDLE;
+		createInfo.preTransform = details.capabilities.currentTransform;
+
+		if (vkCreateSwapchainKHR(m_LogicalDevice, &createInfo, nullptr, &m_swapChain) != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to create swap chain!");
+		}
+	}
 private:
 #define NDEBUG
 
@@ -424,7 +483,7 @@ private:
 		"VK_LAYER_KHRONOS_validation"
 	};
 	VkSurfaceKHR m_Surface;
-
+	VkSwapchainKHR m_swapChain;
 	//in some reason that not all graphics cards can show image on the actual window
 	//so we need to check whether it can swap 
 	const std::vector<const char*> deviceExtensions = {

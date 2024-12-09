@@ -48,6 +48,13 @@ struct QueueFamilyIndex
 		return indices.has_value() && presentFamily.has_value();
 	}
 };
+
+struct SwapChainSupportDetails // these attributes are all we need to check the swap chain
+{
+	VkSurfaceCapabilitiesKHR capabilities;
+	std::vector<VkSurfaceFormatKHR> formats;
+	std::vector<VkPresentModeKHR> presentModes;
+};
 class Presentation
 {
 public:
@@ -241,6 +248,26 @@ private:
 		}
 		return index;
 	}
+	SwapChainSupportDetails queueSwapChainSupport(VkPhysicalDevice& device)
+	{
+		SwapChainSupportDetails details;
+
+		vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, m_Surface, &details.capabilities);
+
+		uint32_t formatKHRCount;
+		vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_Surface, &formatKHRCount, nullptr);
+		if (formatKHRCount)
+		{
+			vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_Surface, &formatKHRCount, details.formats.data());
+		}
+		uint32_t presentationModesCount;
+		vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_Surface, &presentationModesCount, nullptr);
+		if (presentationModesCount)
+		{
+			vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_Surface, &presentationModesCount, details.presentModes.data());
+		}
+		return details;//this also the necessary for window show
+	}
 	bool hasTheExtensions(VkPhysicalDevice device)
 	{
 		//get total extension of a device
@@ -263,7 +290,14 @@ private:
 		QueueFamilyIndex index = GetQueueFamilyIndex(physicalDevice);
 
 		bool has_extensions = hasTheExtensions(physicalDevice);
-		return index.hasValue() && has_extensions;
+
+		bool enableSwapChain = false;
+		if (has_extensions)
+		{
+			SwapChainSupportDetails swapChainSupportDetails = queueSwapChainSupport(physicalDevice);
+			enableSwapChain = !(swapChainSupportDetails.formats.empty() || swapChainSupportDetails.presentModes.empty());
+		}
+		return index.hasValue() && has_extensions && enableSwapChain;
 	}
 	void createLogicalDevice()
 	{

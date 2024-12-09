@@ -125,6 +125,10 @@ private:
 	void clearUp()
 	{
 		DestroyDebugUtilsMessengerEXT(m_Instance, m_DebugMessenger, nullptr);
+		for (int i = 0; i < m_swapChainImageViews.size(); i++)
+		{
+			vkDestroyImageView(m_LogicalDevice, m_swapChainImageViews[i], nullptr);
+		}
 		vkDestroySwapchainKHR(m_LogicalDevice, m_swapChain, nullptr);
 		vkDestroyDevice(m_LogicalDevice, nullptr);
 		vkDestroySurfaceKHR(m_Instance, m_Surface, nullptr);
@@ -143,7 +147,7 @@ private:
 		pickPhysicalDevice();
 		createLogicalDevice();
 		createSwapSurface();
-		
+		createSwapChainImageViews();
 	}
 	void createGLfWWindow()
 	{
@@ -469,6 +473,33 @@ private:
 		m_swapChainImageFormat = surfaceFormat.format;
 		m_swapChainExtent = extent;
 	}
+	void createSwapChainImageViews()
+	{
+		m_swapChainImageViews.resize(m_swapChainImages.size());
+
+		for (int i = 0; i < m_swapChainImageViews.size(); i++)
+		{
+			VkImageViewCreateInfo createInfo{};
+			createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+			createInfo.image = m_swapChainImages[i];
+			createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+			createInfo.format = m_swapChainImageFormat;
+			createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+			createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+			createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+			createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+			createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			createInfo.subresourceRange.baseArrayLayer = 0;
+			createInfo.subresourceRange.baseMipLevel = 0;
+			createInfo.subresourceRange.layerCount = 1;
+			createInfo.subresourceRange.levelCount = 1;
+			if (vkCreateImageView(m_LogicalDevice, &createInfo, nullptr, &m_swapChainImageViews[i]) != VK_SUCCESS)
+			{
+				throw std::runtime_error("failed to create image view");
+			}
+		}
+	}
 private:
 #define NDEBUG
 
@@ -496,6 +527,7 @@ private:
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME
 	};
 	std::vector<VkImage> m_swapChainImages;
+	std::vector<VkImageView> m_swapChainImageViews;
 	VkFormat m_swapChainImageFormat;
 	VkExtent2D m_swapChainExtent;
 };

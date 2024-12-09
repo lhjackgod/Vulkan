@@ -241,10 +241,29 @@ private:
 		}
 		return index;
 	}
+	bool hasTheExtensions(VkPhysicalDevice device)
+	{
+		//get total extension of a device
+		uint32_t deviceExtensionsCount;
+		vkEnumerateDeviceExtensionProperties(device, nullptr, &deviceExtensionsCount, nullptr);
+
+		std::vector<VkExtensionProperties> avaliableExtensions(deviceExtensionsCount);
+		vkEnumerateDeviceExtensionProperties(device, nullptr, &deviceExtensionsCount, avaliableExtensions.data());
+
+		std::set<std::string> requireExtensions(deviceExtensions.begin(), deviceExtensions.end());
+		//to check if the extensions include the the extensions we need
+		for (auto& extension : avaliableExtensions)
+		{
+			requireExtensions.erase(extension.extensionName);
+		}
+		return requireExtensions.empty();
+	}
 	bool physicalSuitable(VkPhysicalDevice& physicalDevice)
 	{
 		QueueFamilyIndex index = GetQueueFamilyIndex(physicalDevice);
-		return index.hasValue();
+
+		bool has_extensions = hasTheExtensions(physicalDevice);
+		return index.hasValue() && has_extensions;
 	}
 	void createLogicalDevice()
 	{
@@ -320,6 +339,12 @@ private:
 		"VK_LAYER_KHRONOS_validation"
 	};
 	VkSurfaceKHR m_Surface;
+
+	//in some reason that not all graphics cards can show image on the actual window
+	//so we need to check whether it can swap 
+	const std::vector<const char*> deviceExtensions = {
+		VK_KHR_SWAPCHAIN_EXTENSION_NAME
+	};
 };
 
 int main()

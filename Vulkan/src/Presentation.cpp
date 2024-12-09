@@ -5,6 +5,7 @@
 #include <vector>
 #include <optional>
 #include <set>
+#include <algorithm>
 
 VKAPI_ATTR VkResult VKAPI_CALL CreateDebugUtilsMessengerEXT(
 	VkInstance                                  instance,
@@ -55,6 +56,56 @@ struct SwapChainSupportDetails // these attributes are all we need to check the 
 	std::vector<VkSurfaceFormatKHR> formats;
 	std::vector<VkPresentModeKHR> presentModes;
 };
+
+//we need to choose the swapChian way from the physical device
+VkSurfaceFormatKHR chooseSwapSurfaceFormat(std::vector<VkSurfaceFormatKHR>& formats)
+{
+	for (auto& format : formats)
+	{
+		if (format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR &&
+			format.format == VK_FORMAT_B8G8R8_SRGB)
+		{
+			return format;
+		}
+	}
+	return formats[0];
+}
+
+VkPresentModeKHR chooseSwapSurfacePresentMode(std::vector<VkPresentModeKHR>& presentmodes)
+{
+	for (auto& presentmode : presentmodes)
+	{
+		if (presentmode == VkPresentModeKHR::VK_PRESENT_MODE_MAILBOX_KHR)//check if the present mode can be used
+		{
+			return presentmode;
+		}
+	}
+	return VkPresentModeKHR::VK_PRESENT_MODE_FIFO_KHR; //because this presentMode can be guaranteed to be avaliable
+}
+
+/*first of all the glfw use the screen space to set window
+* it means that we will get actually more pixels as we want because of the api
+* plus, the vulkan only need to swap data by pixels, so we need to set the pixels avange for out vulkan
+* 1. if the vksurfacecapacities.currentExtent get a vaild value ,we just return it
+* 2. if the value have not set yet, we need to set the value by using glfwgetFrambufferSize
+* this function return the actual count of pixels by using reference
+* in the end we also need to check the limit about the value(clamp)
+*/
+VkExtent2D chooseSwapExten(GLFWwindow* window,const VkSurfaceCapabilitiesKHR& capacilies)
+{
+	if (capacilies.currentExtent.width != std::numeric_limits<uint32_t>::max())
+	{
+		return capacilies.currentExtent;
+	}
+	VkExtent2D actualExtent;
+	int width, height;
+	glfwGetFramebufferSize(window, &width, &height);
+	actualExtent.width = (uint32_t) width;
+	actualExtent.height = (uint32_t)height;
+	actualExtent.width = std::clamp(actualExtent.width, capacilies.minImageExtent.width, capacilies.maxImageExtent.width);
+	actualExtent.height = std::clamp(actualExtent.height, capacilies.minImageExtent.height, capacilies.maxImageExtent.height);
+	return actualExtent;
+}
 class Presentation
 {
 public:

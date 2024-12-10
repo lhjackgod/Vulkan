@@ -125,6 +125,7 @@ public:
 private:
 	void clearUp()
 	{
+		vkDestroyPipelineLayout(m_LogicalDevice, m_PipeLineLayout, nullptr);
 		DestroyDebugUtilsMessengerEXT(m_Instance, m_DebugMessenger, nullptr);
 		for (int i = 0; i < m_swapChainImageViews.size(); i++)
 		{
@@ -366,7 +367,7 @@ private:
 	{
 		VkDeviceCreateInfo createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-		createInfo.enabledExtensionCount = 1;
+		createInfo.enabledExtensionCount = (uint32_t)deviceExtensions.size();
 		createInfo.ppEnabledExtensionNames = deviceExtensions.data();
 		if (enableValidation)
 		{
@@ -550,6 +551,142 @@ private:
 		fragShaderCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
 
 		VkPipelineShaderStageCreateInfo shaderStages[]{verShaderCreateInfo, fragShaderCreateInfo};
+		//most of the pipeline state needs to be bakeed into pipeline state, 
+		//in some situtaion we need to change some states but not need to recreate the pipeline
+
+		//choose the dynamic states
+		std::vector<VkDynamicState> dynamicStates = {
+			VK_DYNAMIC_STATE_VIEWPORT,
+			VK_DYNAMIC_STATE_SCISSOR
+		};
+		VkPipelineDynamicStateCreateInfo dynamicStateInfo{};
+		dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+		dynamicStateInfo.dynamicStateCount = (uint32_t)dynamicStates.size();
+		dynamicStateInfo.pDynamicStates = dynamicStates.data();
+
+
+		//now we begin to set the pipeline
+		//first is the vertex input
+		//because we have set the data in the vershader
+		//so we just need to set nothing with the vertex
+		VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+		vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		vertexInputInfo.vertexBindingDescriptionCount = 0;
+		vertexInputInfo.pVertexBindingDescriptions = nullptr;//optional
+		vertexInputInfo.vertexAttributeDescriptionCount = 0;
+		vertexInputInfo.pVertexAttributeDescriptions = nullptr;//optional
+
+		//second is the input assembly
+		VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo{};
+		inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+		inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+		inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
+
+		//viewport -> view scissor
+		VkViewport view{};
+		{
+			view.x = 0;
+			view.y = 0;
+			view.width = m_swapChainExtent.width;
+			view.height = m_swapChainExtent.height;
+			view.minDepth = 0.0f;
+			view.maxDepth = 1.0f;
+		}
+		VkRect2D scissor{};
+		{
+			scissor.offset = { 0,0 };
+			scissor.extent = m_swapChainExtent;
+		}
+
+		VkPipelineViewportStateCreateInfo viewportSateInfo{};
+		viewportSateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+		viewportSateInfo.viewportCount = 1;
+		viewportSateInfo.scissorCount = 1;
+		viewportSateInfo.pScissors = &scissor;
+		viewportSateInfo.pViewports = &view;
+		
+		//rasterize
+		VkPipelineRasterizationStateCreateInfo rasterizeStateInfo{};
+		rasterizeStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+		{
+			rasterizeStateInfo.depthClampEnable = VK_FALSE; // if true the pic out of range will be clamp to edge
+			//but we want to discard
+			rasterizeStateInfo.rasterizerDiscardEnable = VK_FALSE;//if true pic will never pass through the rasterize
+			rasterizeStateInfo.polygonMode = VK_POLYGON_MODE_FILL; // to way to fill the graphics
+			rasterizeStateInfo.cullMode = VK_CULL_MODE_BACK_BIT; //cull face
+			rasterizeStateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE; // set the front face
+			rasterizeStateInfo.depthBiasEnable = VK_FALSE; //depth bais
+			rasterizeStateInfo.depthBiasClamp = 0.0f;//optional
+			rasterizeStateInfo.depthBiasConstantFactor = 0.0f;//optional
+			rasterizeStateInfo.depthBiasSlopeFactor = 0.0f; //optional
+		}
+
+		//multi-sample,We'll revisit multisampling in later chapter, 
+		//for now let's keep it disabled.
+		VkPipelineMultisampleStateCreateInfo mutiSampleInfo{};
+		mutiSampleInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+		mutiSampleInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+		mutiSampleInfo.sampleShadingEnable = VK_FALSE;
+		mutiSampleInfo.minSampleShading = 1.0f;//optional
+		mutiSampleInfo.pSampleMask = nullptr;//optional
+		mutiSampleInfo.alphaToCoverageEnable = VK_FALSE;//optional
+		mutiSampleInfo.alphaToOneEnable = VK_FALSE;//optional
+		/*If you are using a depth and/or stencil buffer,
+		then you also need to configure the depth and stencil 
+		tests using VkPipelineDepthStencilStateCreateInfo. 
+		We don't have one right now, so we can simply pass a 
+		nullptr instead of a pointer to such a struct. 
+		We'll get back to it in the depth buffering chapter.
+		*/
+
+		//colorBlending
+		VkPipelineColorBlendStateCreateInfo colorBlendInfo{};
+		colorBlendInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+		colorBlendInfo.logicOpEnable = VK_FALSE;
+		colorBlendInfo.logicOp = VK_LOGIC_OP_COPY;
+
+		VkPipelineColorBlendAttachmentState colorAttachmentState{};
+		colorAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+			VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+		colorAttachmentState.blendEnable = VK_FALSE;
+		colorAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+		colorAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+		colorAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+		colorAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+		colorAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+		colorAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+
+		colorBlendInfo.attachmentCount = 1;
+		colorBlendInfo.pAttachments = &colorAttachmentState;
+		/*this is the blend way
+		if (blendEnable) {
+			finalColor.rgb = (srcColorBlendFactor * newColor.rgb) < colorBlendOp > (dstColorBlendFactor * oldColor.rgb);
+			finalColor.a = (srcAlphaBlendFactor * newColor.a) < alphaBlendOp > (dstAlphaBlendFactor * oldColor.a);
+		}
+		else {
+			finalColor = newColor;
+		}
+
+		finalColor = finalColor & colorWriteMask;*/
+
+		colorBlendInfo.blendConstants[0] = 0.0f;
+		colorBlendInfo.blendConstants[1] = 0.0f;
+		colorBlendInfo.blendConstants[2] = 0.0f;
+		colorBlendInfo.blendConstants[3] = 0.0f;
+
+		//you can use uniform to change the state about the vert and frag
+
+		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		pipelineLayoutInfo.setLayoutCount = 0;
+		pipelineLayoutInfo.pSetLayouts = nullptr;
+		pipelineLayoutInfo.pushConstantRangeCount = 0;
+		pipelineLayoutInfo.pPushConstantRanges = nullptr;
+
+		if (vkCreatePipelineLayout(m_LogicalDevice, &pipelineLayoutInfo, nullptr, &m_PipeLineLayout) != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to create pipeline layout");
+		}
 
 		vkDestroyShaderModule(m_LogicalDevice, verShaderModule, nullptr);
 		vkDestroyShaderModule(m_LogicalDevice, fragShaderModule, nullptr);
@@ -584,6 +721,7 @@ private:
 	std::vector<VkImageView> m_swapChainImageViews;
 	VkFormat m_swapChainImageFormat;
 	VkExtent2D m_swapChainExtent;
+	VkPipelineLayout m_PipeLineLayout;
 };
 
 int main()

@@ -125,6 +125,7 @@ public:
 private:
 	void clearUp()
 	{
+		vkDestroyRenderPass(m_LogicalDevice, m_renderPass, nullptr);
 		vkDestroyPipelineLayout(m_LogicalDevice, m_PipeLineLayout, nullptr);
 		DestroyDebugUtilsMessengerEXT(m_Instance, m_DebugMessenger, nullptr);
 		for (int i = 0; i < m_swapChainImageViews.size(); i++)
@@ -150,6 +151,7 @@ private:
 		createLogicalDevice();
 		createSwapSurface();
 		createSwapChainImageViews();
+		createRenderPass();
 		createGraphicsPipeline();
 	}
 	void createGLfWWindow()
@@ -691,6 +693,43 @@ private:
 		vkDestroyShaderModule(m_LogicalDevice, verShaderModule, nullptr);
 		vkDestroyShaderModule(m_LogicalDevice, fragShaderModule, nullptr);
 	}
+	void createRenderPass()
+	{
+		VkAttachmentDescription colorAttachment{};
+		colorAttachment.format = m_swapChainImageFormat;
+		colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; //clear before render
+		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; //in this case we don't care stencil
+		colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
+		colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; //we don't care before layout
+		colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+		//then we need a reference to point the attachment
+		VkAttachmentReference attachmentReference{};
+		attachmentReference.attachment = 0; // in the attachment array we only have one attachment
+		attachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+		//create subpass
+		VkSubpassDescription subPass{};
+		subPass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		subPass.colorAttachmentCount = 1;
+		subPass.pColorAttachments = &attachmentReference;
+
+		//create renderpass
+		VkRenderPassCreateInfo renderpassInfo{};
+		renderpassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		renderpassInfo.attachmentCount = 1; //only have one
+		renderpassInfo.pAttachments = &colorAttachment;
+		renderpassInfo.subpassCount = 1;
+		renderpassInfo.pSubpasses = &subPass;
+
+		if (vkCreateRenderPass(m_LogicalDevice, &renderpassInfo, nullptr, &m_renderPass) != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to create render pass!");
+		}
+	}
 private:
 #define NDEBUG
 
@@ -721,6 +760,7 @@ private:
 	std::vector<VkImageView> m_swapChainImageViews;
 	VkFormat m_swapChainImageFormat;
 	VkExtent2D m_swapChainExtent;
+	VkRenderPass m_renderPass;
 	VkPipelineLayout m_PipeLineLayout;
 };
 

@@ -125,6 +125,7 @@ public:
 private:
 	void clearUp()
 	{
+		vkDestroyPipeline(m_LogicalDevice, m_GraphicsPipline, nullptr);
 		vkDestroyRenderPass(m_LogicalDevice, m_renderPass, nullptr);
 		vkDestroyPipelineLayout(m_LogicalDevice, m_PipeLineLayout, nullptr);
 		DestroyDebugUtilsMessengerEXT(m_Instance, m_DebugMessenger, nullptr);
@@ -621,6 +622,7 @@ private:
 			rasterizeStateInfo.depthBiasClamp = 0.0f;//optional
 			rasterizeStateInfo.depthBiasConstantFactor = 0.0f;//optional
 			rasterizeStateInfo.depthBiasSlopeFactor = 0.0f; //optional
+			rasterizeStateInfo.lineWidth = 1.0f;
 		}
 
 		//multi-sample,We'll revisit multisampling in later chapter, 
@@ -688,6 +690,28 @@ private:
 		if (vkCreatePipelineLayout(m_LogicalDevice, &pipelineLayoutInfo, nullptr, &m_PipeLineLayout) != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to create pipeline layout");
+		}
+
+		VkGraphicsPipelineCreateInfo graphicsPipelineInfo{};
+		graphicsPipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+		graphicsPipelineInfo.stageCount = (uint32_t)2;
+		graphicsPipelineInfo.pStages = shaderStages;
+		graphicsPipelineInfo.pVertexInputState = &vertexInputInfo;
+		graphicsPipelineInfo.pInputAssemblyState = &inputAssemblyInfo;
+		graphicsPipelineInfo.pViewportState = &viewportSateInfo;
+		graphicsPipelineInfo.pRasterizationState = &rasterizeStateInfo;
+		graphicsPipelineInfo.pMultisampleState = &mutiSampleInfo;
+		graphicsPipelineInfo.pDepthStencilState = nullptr;
+		graphicsPipelineInfo.pColorBlendState = &colorBlendInfo;
+		graphicsPipelineInfo.pDynamicState = &dynamicStateInfo;
+		graphicsPipelineInfo.layout = m_PipeLineLayout;
+		graphicsPipelineInfo.renderPass = m_renderPass;
+		graphicsPipelineInfo.subpass = 0;//the subpass index of the renderpass
+		graphicsPipelineInfo.basePipelineIndex = -1;
+		graphicsPipelineInfo.basePipelineHandle = VK_NULL_HANDLE;//we can reuse the pipeline, which we have set
+		if (vkCreateGraphicsPipelines(m_LogicalDevice, VK_NULL_HANDLE, 1, &graphicsPipelineInfo, nullptr, &m_GraphicsPipline) != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to create graphics pipline!");
 		}
 
 		vkDestroyShaderModule(m_LogicalDevice, verShaderModule, nullptr);
@@ -762,6 +786,7 @@ private:
 	VkExtent2D m_swapChainExtent;
 	VkRenderPass m_renderPass;
 	VkPipelineLayout m_PipeLineLayout;
+	VkPipeline m_GraphicsPipline;
 };
 
 int main()

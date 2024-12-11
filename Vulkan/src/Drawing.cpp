@@ -90,10 +90,15 @@ private:
 		createImageViews();
 		createRenderPass();
 		createGraphicsPipeline();
+		createFramBuffers();
 	}
 
 	void clearUp()
 	{
+		for (int i = 0; i < m_Frambuffers.size(); i++)
+		{
+			vkDestroyFramebuffer(m_LogicalDevice, m_Frambuffers[i], nullptr);
+		}
 		vkDestroyPipeline(m_LogicalDevice, m_GraphicsPipeline, nullptr);
 		vkDestroyRenderPass(m_LogicalDevice, m_RenderPass, nullptr);
 		for (int i = 0; i < m_SwapChainImageViews.size(); i++)
@@ -717,6 +722,26 @@ private:
 		vkDestroyPipelineLayout(m_LogicalDevice, pipelineLayout, nullptr);
 	}
 
+	void createFramBuffers()
+	{
+		m_Frambuffers.resize(m_SwapChainImageViews.size());
+		for (int i = 0; i < m_Frambuffers.size(); i++)
+		{
+			VkFramebufferCreateInfo frambufferCreateInfo{};
+			frambufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+			frambufferCreateInfo.renderPass = m_RenderPass;
+			frambufferCreateInfo.attachmentCount = 1;
+			frambufferCreateInfo.pAttachments = &m_SwapChainImageViews[i];
+			frambufferCreateInfo.width = m_ImageExtent.width;
+			frambufferCreateInfo.height = m_ImageExtent.height;
+			frambufferCreateInfo.layers = 1;
+			
+			if (vkCreateFramebuffer(m_LogicalDevice, &frambufferCreateInfo, nullptr, &m_Frambuffers[i]) != VK_SUCCESS)
+			{
+				throw std::runtime_error("failed to create FramBuffer!");
+			}
+		}
+	}
 private:
 #ifdef NDEBUG
 
@@ -743,6 +768,7 @@ private:
 	VkExtent2D m_ImageExtent;
 	VkRenderPass m_RenderPass;
 	VkPipeline m_GraphicsPipeline;
+	std::vector<VkFramebuffer> m_Frambuffers;
 };
 int main()
 {

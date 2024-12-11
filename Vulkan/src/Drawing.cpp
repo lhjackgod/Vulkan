@@ -91,10 +91,12 @@ private:
 		createRenderPass();
 		createGraphicsPipeline();
 		createFramBuffers();
+		createCommandPool();
 	}
 
 	void clearUp()
 	{
+		vkDestroyCommandPool(m_LogicalDevice, m_GrapgicsCommandPool, nullptr);
 		for (int i = 0; i < m_Frambuffers.size(); i++)
 		{
 			vkDestroyFramebuffer(m_LogicalDevice, m_Frambuffers[i], nullptr);
@@ -742,6 +744,20 @@ private:
 			}
 		}
 	}
+
+	void createCommandPool()
+	{
+		queueFamilyIndex queueFamilies = getPhysicalQueueFamilyIndices(m_PhysicalDevice);
+		VkCommandPoolCreateInfo commandPoolCreateInfo{};
+		commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+		commandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+		commandPoolCreateInfo.queueFamilyIndex = queueFamilies.graphicsIndex.value();
+		if (vkCreateCommandPool(m_LogicalDevice, &commandPoolCreateInfo, nullptr, &m_GrapgicsCommandPool) != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to create commandPool!");
+		}
+	}
+
 private:
 #ifdef NDEBUG
 
@@ -769,6 +785,7 @@ private:
 	VkRenderPass m_RenderPass;
 	VkPipeline m_GraphicsPipeline;
 	std::vector<VkFramebuffer> m_Frambuffers;
+	VkCommandPool m_GrapgicsCommandPool;
 };
 int main()
 {

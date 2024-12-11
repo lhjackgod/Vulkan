@@ -771,6 +771,57 @@ private:
 			throw std::runtime_error("failed to create commandBuffer!");
 		}
 	}
+
+	void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
+	{
+		VkCommandBufferBeginInfo commandBufferBeginInfo{};
+		commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		commandBufferBeginInfo.pInheritanceInfo = nullptr;
+		commandBufferBeginInfo.flags = 0;
+		if (vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo) != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to begin recording command buffer!");
+		}
+		VkRenderPassBeginInfo renderPassBeginInfo{};
+		renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		renderPassBeginInfo.renderPass = m_RenderPass;
+		renderPassBeginInfo.framebuffer = m_Frambuffers[imageIndex]; 
+		renderPassBeginInfo.renderArea.extent = m_ImageExtent;
+		renderPassBeginInfo.renderArea.offset = { 0,0 };
+		VkClearValue clearValue{};
+		clearValue.color = {0.0f, 0.0f, 0.0f, 1.0f};
+		renderPassBeginInfo.clearValueCount = 1;
+		renderPassBeginInfo.pClearValues = &clearValue;
+		vkCmdBeginRenderPass(m_GraphicsCommandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+		vkCmdBindPipeline(m_GraphicsCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_GraphicsPipeline);
+
+		//before session we have set the dynamic pipeline attributes
+		VkViewport viewport{};
+		viewport.x = 0.0f;
+		viewport.y = 0.0f;
+		viewport.width = static_cast<float>(m_ImageExtent.width);
+		viewport.height = static_cast<float>(m_ImageExtent.height);
+		viewport.minDepth = 0.0f;
+		viewport.maxDepth = 1.0f;
+		vkCmdSetViewport(m_GraphicsCommandBuffer, 0, 1, &viewport);
+
+		VkRect2D scissor{};
+		scissor.offset = { 0,0 };
+		scissor.extent = m_ImageExtent;
+		vkCmdSetScissor(m_GraphicsCommandBuffer, 0, 1, &scissor);
+
+		vkCmdDraw(m_GraphicsCommandBuffer, 3, 1, 0, 0);
+		//finish
+		vkCmdEndRenderPass(m_GraphicsCommandBuffer);
+
+		//close commandBuffer
+		if (vkEndCommandBuffer(m_GraphicsCommandBuffer) != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to record command buffer");
+		}
+	}
+
 private:
 #ifdef NDEBUG
 

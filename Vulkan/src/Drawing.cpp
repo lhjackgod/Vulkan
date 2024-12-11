@@ -92,6 +92,7 @@ private:
 		createGraphicsPipeline();
 		createFramBuffers();
 		createCommandPool();
+		createCommandBuffer();
 	}
 
 	void clearUp()
@@ -758,6 +759,18 @@ private:
 		}
 	}
 
+	void createCommandBuffer()
+	{
+		VkCommandBufferAllocateInfo commandBufferAllocateInfo{};
+		commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		commandBufferAllocateInfo.commandBufferCount = 1;
+		commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		commandBufferAllocateInfo.commandPool = m_GrapgicsCommandPool;
+		if (vkAllocateCommandBuffers(m_LogicalDevice, &commandBufferAllocateInfo, &m_GraphicsCommandBuffer) != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to create commandBuffer!");
+		}
+	}
 private:
 #ifdef NDEBUG
 
@@ -786,6 +799,7 @@ private:
 	VkPipeline m_GraphicsPipeline;
 	std::vector<VkFramebuffer> m_Frambuffers;
 	VkCommandPool m_GrapgicsCommandPool;
+	VkCommandBuffer m_GraphicsCommandBuffer;
 };
 int main()
 {

@@ -96,6 +96,19 @@ private:
 		createSyncObjects();
 	}
 
+	void cleanUpSwapChain()
+	{
+		for (int i = 0; i < m_Frambuffers.size(); i++)
+		{
+			vkDestroyFramebuffer(m_LogicalDevice, m_Frambuffers[i], nullptr);
+		}
+		for (int i = 0; i < m_SwapChainImageViews.size(); i++)
+		{
+			vkDestroyImageView(m_LogicalDevice, m_SwapChainImageViews[i], nullptr);
+		}
+		vkDestroySwapchainKHR(m_LogicalDevice, m_SwapChain, nullptr);
+	}
+
 	void clearUp()
 	{
 		for (int i = 0; i < MAX_FAMER_IN_FLIGHT; i++)
@@ -914,6 +927,16 @@ private:
 				throw std::runtime_error("failed to create syncVerb!");
 			}
 		}
+	}
+
+	void recreateSwapChain()
+	{
+		vkDeviceWaitIdle(m_LogicalDevice);
+
+		cleanUpSwapChain();
+		createSwapChainKHR();
+		createImageViews();
+		createFramBuffers();
 	}
 
 private:

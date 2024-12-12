@@ -153,11 +153,19 @@ private:
 	{
 		vkWaitForFences(m_LogicalDevice, 1, &m_InFlightFence[currentFame], VK_TRUE, UINT64_MAX);
 		
-		vkResetFences(m_LogicalDevice, 1, &m_InFlightFence[currentFame]); //just reset the fence 
-		//nothing to do with sync
-
 		uint32_t imageIndex;
-		vkAcquireNextImageKHR(m_LogicalDevice, m_SwapChain, UINT64_MAX, m_ImageAvaliableSemaphore[currentFame], VK_NULL_HANDLE, &imageIndex);
+		VkResult result = vkAcquireNextImageKHR(m_LogicalDevice, m_SwapChain, UINT64_MAX, m_ImageAvaliableSemaphore[currentFame], VK_NULL_HANDLE, &imageIndex);
+		if (result == VK_ERROR_OUT_OF_DATE_KHR)
+		{
+			recreateSwapChain();
+			return;
+		}
+		else if (result != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to acquire swap chain image!");
+		}
+
+		vkResetFences(m_LogicalDevice, 1, &m_InFlightFence[currentFame]);
 
 		vkResetCommandBuffer(m_GraphicsCommandBuffer[currentFame], 0);
 		recordCommandBuffer(m_GraphicsCommandBuffer[currentFame], imageIndex);
@@ -206,7 +214,7 @@ private:
 	{
 		glfwInit();
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+		//glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 		m_Window = glfwCreateWindow(800, 600, "triangle", nullptr, nullptr);
 	}
 

@@ -126,14 +126,16 @@ private:
 	{
 		while (!glfwWindowShouldClose(m_Window))
 		{
-			drawFrame();
 			glfwPollEvents();
+			drawFrame();
 		}
+		vkDeviceWaitIdle(m_LogicalDevice);
 	}
 
 	void drawFrame() 
 	{
 		vkWaitForFences(m_LogicalDevice, 1, &m_InFlightFence, VK_TRUE, UINT64_MAX);//wait for last frame finish
+		
 
 		uint32_t imageIndex;
 		vkAcquireNextImageKHR(m_LogicalDevice, m_SwapChain, UINT64_MAX, m_ImageAvaliableSemaphore, VK_NULL_HANDLE, &imageIndex);
@@ -154,14 +156,28 @@ private:
 		submitInfo.pWaitDstStageMask = pipelineStageFlags;
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &m_GraphicsCommandBuffer;
-		VkSemaphore signSemaphore[]{ m_RenderFinishedSemaphore };
+		VkSemaphore signalSemaphore[]{ m_RenderFinishedSemaphore };
 		submitInfo.signalSemaphoreCount = 1;
-		submitInfo.pSignalSemaphores = signSemaphore;
+		submitInfo.pSignalSemaphores = signalSemaphore;
 		if (vkQueueSubmit(m_GraphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to submit draw command buffer!");
 		}
 		//finish the pic render
+		//predent to screen
+		VkPresentInfoKHR presentInfo{};
+		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+		presentInfo.waitSemaphoreCount = 1;
+		presentInfo.pWaitSemaphores = signalSemaphore;
+		presentInfo.swapchainCount = 1;
+
+		VkSwapchainKHR swapChains[]{ m_SwapChain };
+		presentInfo.pSwapchains = swapChains;
+
+		presentInfo.pImageIndices = &imageIndex;
+		presentInfo.pResults = VK_NULL_HANDLE;
+
+		vkQueuePresentKHR(m_SurfaceQueue, &presentInfo);
 
 		vkResetFences(m_LogicalDevice, 1, &m_InFlightFence); //finish the frame
 	}

@@ -135,6 +135,34 @@ private:
 	{
 		vkWaitForFences(m_LogicalDevice, 1, &m_InFlightFence, VK_TRUE, UINT64_MAX);//wait for last frame finish
 
+		uint32_t imageIndex;
+		vkAcquireNextImageKHR(m_LogicalDevice, m_SwapChain, UINT64_MAX, m_ImageAvaliableSemaphore, VK_NULL_HANDLE, &imageIndex);
+		//now we get the image, and sign for we have ready for rendering
+		vkResetCommandBuffer(m_GraphicsCommandBuffer, 0);
+		recordCommandBuffer(m_GraphicsCommandBuffer, imageIndex);//now we record the command buffer
+		//ready for committing
+		VkSubmitInfo submitInfo{};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+		VkSemaphore waitSemaphores[]{ m_ImageAvaliableSemaphore };
+		//pWaitDstStageMask is wait for the specific stage of the pipeline such as 
+		//if the pipeline have run the vershader stage we can keep on
+		//wait for the color attachment out
+		VkPipelineStageFlags pipelineStageFlags[]{ VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+		submitInfo.waitSemaphoreCount = 1;
+		submitInfo.pWaitSemaphores = waitSemaphores;
+		submitInfo.pWaitDstStageMask = pipelineStageFlags;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &m_GraphicsCommandBuffer;
+		VkSemaphore signSemaphore[]{ m_RenderFinishedSemaphore };
+		submitInfo.signalSemaphoreCount = 1;
+		submitInfo.pSignalSemaphores = signSemaphore;
+		if (vkQueueSubmit(m_GraphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to submit draw command buffer!");
+		}
+		//finish the pic render
+
 		vkResetFences(m_LogicalDevice, 1, &m_InFlightFence); //finish the frame
 	}
 
@@ -553,8 +581,19 @@ private:
 		renderPassCreateInfo.pAttachments = &colorAttachment;
 		renderPassCreateInfo.subpassCount = 1;
 		renderPassCreateInfo.pSubpasses = &subPassDescription;
-		renderPassCreateInfo.dependencyCount = 0;
-		renderPassCreateInfo.pDependencies = nullptr;
+
+		VkSubpassDependency subpassDependency{};
+		subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL;//the subpass not this renderpass
+		subpassDependency.dstSubpass = 0; //we only have one subpass 
+		subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; //if the dst in this stage
+		//it will wait for src
+		//set the subpass action for buffer
+		subpassDependency.srcAccessMask = 0;//the other subpass will not impact this renderpass
+		subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+		renderPassCreateInfo.dependencyCount = 1;
+		renderPassCreateInfo.pDependencies = &subpassDependency;
 
 		if (vkCreateRenderPass(m_LogicalDevice, &renderPassCreateInfo, nullptr, &m_RenderPass) != VK_SUCCESS)
 		{

@@ -93,10 +93,14 @@ private:
 		createFramBuffers();
 		createCommandPool();
 		createCommandBuffer();
+		createSyncObjects();
 	}
 
 	void clearUp()
 	{
+		vkDestroySemaphore(m_LogicalDevice, m_ImageAvaliableSemaphore, nullptr);
+		vkDestroySemaphore(m_LogicalDevice, m_RenderFinishedSemaphore, nullptr);
+		vkDestroyFence(m_LogicalDevice, m_InFlightFence, nullptr);
 		vkDestroyCommandPool(m_LogicalDevice, m_GrapgicsCommandPool, nullptr);
 		for (int i = 0; i < m_Frambuffers.size(); i++)
 		{
@@ -822,6 +826,23 @@ private:
 		}
 	}
 
+	void createSyncObjects()
+	{
+		VkSemaphoreCreateInfo semaphoreCreateInfo{};
+		semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+		VkFenceCreateInfo fenceCreateInfo{};
+		fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+
+		if (vkCreateSemaphore(m_LogicalDevice, &semaphoreCreateInfo, nullptr, &m_ImageAvaliableSemaphore) != VK_SUCCESS ||
+			vkCreateSemaphore(m_LogicalDevice, &semaphoreCreateInfo, nullptr, &m_RenderFinishedSemaphore) != VK_SUCCESS ||
+			vkCreateFence(m_LogicalDevice, &fenceCreateInfo, nullptr, &m_InFlightFence)
+			)
+		{
+			throw std::runtime_error("failed to create semaphores or fences!");
+		}
+	}
+
 private:
 #ifdef NDEBUG
 
@@ -851,6 +872,10 @@ private:
 	std::vector<VkFramebuffer> m_Frambuffers;
 	VkCommandPool m_GrapgicsCommandPool;
 	VkCommandBuffer m_GraphicsCommandBuffer;
+
+	VkSemaphore m_ImageAvaliableSemaphore;
+	VkSemaphore m_RenderFinishedSemaphore;
+	VkFence m_InFlightFence;
 };
 int main()
 {

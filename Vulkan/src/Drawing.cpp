@@ -126,8 +126,16 @@ private:
 	{
 		while (!glfwWindowShouldClose(m_Window))
 		{
+			drawFrame();
 			glfwPollEvents();
 		}
+	}
+
+	void drawFrame() 
+	{
+		vkWaitForFences(m_LogicalDevice, 1, &m_InFlightFence, VK_TRUE, UINT64_MAX);//wait for last frame finish
+
+		vkResetFences(m_LogicalDevice, 1, &m_InFlightFence); //finish the frame
 	}
 
 	void createGLFWWindow()
@@ -833,6 +841,7 @@ private:
 
 		VkFenceCreateInfo fenceCreateInfo{};
 		fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+		fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
 		if (vkCreateSemaphore(m_LogicalDevice, &semaphoreCreateInfo, nullptr, &m_ImageAvaliableSemaphore) != VK_SUCCESS ||
 			vkCreateSemaphore(m_LogicalDevice, &semaphoreCreateInfo, nullptr, &m_RenderFinishedSemaphore) != VK_SUCCESS ||

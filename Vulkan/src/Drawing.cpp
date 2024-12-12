@@ -135,7 +135,8 @@ private:
 	void drawFrame() 
 	{
 		vkWaitForFences(m_LogicalDevice, 1, &m_InFlightFence, VK_TRUE, UINT64_MAX);//wait for last frame finish
-		
+		vkResetFences(m_LogicalDevice, 1, &m_InFlightFence); //just reset the fence 
+		//nothing to do with sync
 
 		uint32_t imageIndex;
 		vkAcquireNextImageKHR(m_LogicalDevice, m_SwapChain, UINT64_MAX, m_ImageAvaliableSemaphore, VK_NULL_HANDLE, &imageIndex);
@@ -159,7 +160,7 @@ private:
 		VkSemaphore signalSemaphore[]{ m_RenderFinishedSemaphore };
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = signalSemaphore;
-		if (vkQueueSubmit(m_GraphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
+		if (vkQueueSubmit(m_GraphicsQueue, 1, &submitInfo, m_InFlightFence) != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to submit draw command buffer!");
 		}
@@ -178,8 +179,6 @@ private:
 		presentInfo.pResults = VK_NULL_HANDLE;
 
 		vkQueuePresentKHR(m_SurfaceQueue, &presentInfo);
-
-		vkResetFences(m_LogicalDevice, 1, &m_InFlightFence); //finish the frame
 	}
 
 	void createGLFWWindow()
@@ -940,6 +939,8 @@ private:
 	VkSemaphore m_ImageAvaliableSemaphore;
 	VkSemaphore m_RenderFinishedSemaphore;
 	VkFence m_InFlightFence;
+	const int MAX_FAMER_IN_FLIGHT = 2;
+
 };
 int main()
 {

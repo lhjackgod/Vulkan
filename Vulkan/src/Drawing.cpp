@@ -1,6 +1,6 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
-
+#include <glm/glm.hpp>
 #include <iostream>
 #include <fstream>
 #include <set>
@@ -9,6 +9,7 @@
 #include <limits>
 #include <algorithm>
 #include <sstream>
+#include <array>
 
 #ifdef NDEBUG
 	const bool enableValidation = false;
@@ -696,12 +697,16 @@ private:
 		fragShaderStageCreateInfo.pName = "main";
 
 		VkPipelineShaderStageCreateInfo shaderStage[2] = { vershaderStageCreateInfo, fragShaderStageCreateInfo };
+		
+		std::array<VkVertexInputAttributeDescription, 2> vertexAttributes = Vertex::getAttributeDescription();
+		VkVertexInputBindingDescription vertexBinding = Vertex::getBindingDescription();
+
 		VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo{};
 		vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-		vertexInputStateCreateInfo.vertexAttributeDescriptionCount = 0;
-		vertexInputStateCreateInfo.pVertexAttributeDescriptions = nullptr;
-		vertexInputStateCreateInfo.vertexBindingDescriptionCount = 0;
-		vertexInputStateCreateInfo.pVertexBindingDescriptions = nullptr;
+		vertexInputStateCreateInfo.vertexAttributeDescriptionCount = 2;
+		vertexInputStateCreateInfo.pVertexAttributeDescriptions = vertexAttributes.data();
+		vertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
+		vertexInputStateCreateInfo.pVertexBindingDescriptions = &vertexBinding;
 
 		VkPipelineInputAssemblyStateCreateInfo inputAssembleCreateInfo{};
 		inputAssembleCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -954,7 +959,7 @@ private:
 		createImageViews();
 		createFramBuffers();
 	}
-
+	
 private:
 #ifdef NDEBUG
 
@@ -991,6 +996,41 @@ private:
 	VkFence m_InFlightFence[MAX_FAMER_IN_FLIGHT];
 	VkCommandBuffer m_GraphicsCommandBuffer[MAX_FAMER_IN_FLIGHT];
 	int currentFame = 0;
+
+	//vertex buffers
+	struct Vertex
+	{
+		glm::vec3 aPos;
+		glm::vec3 aColor;
+
+		static VkVertexInputBindingDescription getBindingDescription()
+		{
+			VkVertexInputBindingDescription vertexInputBindingDescription{};
+			vertexInputBindingDescription.binding = 0; //this is the set id of the attributes of apos and color
+			vertexInputBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+			vertexInputBindingDescription.stride = sizeof(Vertex);
+			return vertexInputBindingDescription;
+		}
+
+		static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescription()
+		{
+			std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+
+			//apos
+			attributeDescriptions[0].binding = 0;
+			attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+			attributeDescriptions[0].location = 0;
+			attributeDescriptions[0].offset = offsetof(Vertex, aPos);
+
+			//color
+			attributeDescriptions[1].binding = 0;
+			attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+			attributeDescriptions[1].location = 1;
+			attributeDescriptions[1].offset = offsetof(Vertex, aColor);
+
+			return attributeDescriptions;
+		}
+	};
 };
 int main()
 {

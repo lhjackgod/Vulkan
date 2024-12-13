@@ -939,6 +939,14 @@ private:
 
 	void recreateSwapChain()
 	{
+		int width = 0, height = 0;
+		glfwGetWindowSize(m_Window, &width, &height);
+		while (width == 0 || height == 0)
+		{
+			glfwGetWindowSize(m_Window, &width, &height);
+			glfwWaitEvents();
+		}
+
 		vkDeviceWaitIdle(m_LogicalDevice);
 
 		cleanUpSwapChain();

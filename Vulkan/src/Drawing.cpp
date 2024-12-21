@@ -92,6 +92,7 @@ private:
 		createRenderPass();
 		createGraphicsPipeline();
 		createFramBuffers();
+		createVertexBuffer();
 		createCommandPool();
 		createCommandBuffer();
 		createSyncObjects();
@@ -112,6 +113,8 @@ private:
 
 	void clearUp()
 	{
+		vkDestroyBuffer(m_LogicalDevice, m_VertexBuffer, nullptr);
+		vkFreeMemory(m_LogicalDevice, m_Memory, nullptr);
 		for (int i = 0; i < MAX_FAMER_IN_FLIGHT; i++)
 		{
 			vkDestroySemaphore(m_LogicalDevice, m_ImageAvaliableSemaphore[i], nullptr);
@@ -361,7 +364,7 @@ private:
 		}
 		return requiredExtensions.empty();
 	}
-
+		
 	surfaceAttributes getPhysicalDeviceSupportSurfaceAttributes(const VkPhysicalDevice& physicalDevice)
 	{
 		surfaceAttributes physicalDeiceSupportSurfaceAttributes{};
@@ -896,6 +899,7 @@ private:
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_GraphicsPipeline);
 
+		
 		//before session we have set the dynamic pipeline attributes
 		VkViewport viewport{};
 		viewport.x = 0.0f;
@@ -911,7 +915,11 @@ private:
 		scissor.extent = m_ImageExtent;
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-		vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+		VkBuffer vertexBuffer[] = { m_VertexBuffer };
+		VkDeviceSize offsets[] = { 0 };
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffer, offsets);
+
+		vkCmdDraw(commandBuffer, static_cast<uint32_t>(vertices.size()), 1, 0, 0);
 		//finish
 		vkCmdEndRenderPass(commandBuffer);
 
@@ -960,6 +968,57 @@ private:
 		createFramBuffers();
 	}
 	
+	uint32_t getMemoryTypeIndex(uint32_t typeFilter, VkMemoryPropertyFlags memoryFlags)
+	{
+		VkPhysicalDeviceMemoryProperties memoryProperties{};
+		vkGetPhysicalDeviceMemoryProperties(m_PhysicalDevice, &memoryProperties);
+		for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; i++)
+		{
+			if (typeFilter & (1 << i) && (memoryProperties.memoryTypes[i].propertyFlags & memoryFlags) == memoryFlags)
+			{
+				return i;
+			}
+		}
+		throw std::runtime_error("failed to find suitable memory type!");
+	}
+
+	void createVertexBuffer()
+	{
+		VkBufferCreateInfo vertexBufferInfo{};
+		vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		vertexBufferInfo.size = sizeof(vertices[0]) * vertices.size();
+		vertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+		vertexBufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		//vertexBufferInfo.pQueueFamilyIndices = nullptr;
+		//vertexBufferInfo.queueFamilyIndexCount = 0;
+
+		if (vkCreateBuffer(m_LogicalDevice, &vertexBufferInfo, nullptr, &m_VertexBuffer) != VK_SUCCESS)
+		{
+			throw std::runtime_error("error create vertexBuffer");
+		}
+
+		VkMemoryRequirements bufferRequirements{};
+		vkGetBufferMemoryRequirements(m_LogicalDevice, m_VertexBuffer, &bufferRequirements);
+
+		VkMemoryAllocateInfo memoryAllocateInfo{};
+		memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		memoryAllocateInfo.allocationSize = bufferRequirements.size;
+		memoryAllocateInfo.memoryTypeIndex = getMemoryTypeIndex(bufferRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT |
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+		if (vkAllocateMemory(m_LogicalDevice, &memoryAllocateInfo, nullptr, &m_Memory) != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to allocate memory");
+		}
+		if (vkBindBufferMemory(m_LogicalDevice, m_VertexBuffer, m_Memory, 0) != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to bindBufferMemory!");
+		}
+		void* data;
+		vkMapMemory(m_LogicalDevice, m_Memory, 0, vertexBufferInfo.size, 0, &data);
+		memcpy(data, vertices.data(), (size_t)vertexBufferInfo.size);
+		vkUnmapMemory(m_LogicalDevice, m_Memory);
+	}
+
 private:
 #ifdef NDEBUG
 
@@ -996,11 +1055,12 @@ private:
 	VkFence m_InFlightFence[MAX_FAMER_IN_FLIGHT];
 	VkCommandBuffer m_GraphicsCommandBuffer[MAX_FAMER_IN_FLIGHT];
 	int currentFame = 0;
-
+	VkBuffer m_VertexBuffer;
+	VkDeviceMemory m_Memory;
 	//vertex buffers
 	struct Vertex
 	{
-		glm::vec3 aPos;
+		glm::vec2 aPos;
 		glm::vec3 aColor;
 
 		static VkVertexInputBindingDescription getBindingDescription()
@@ -1018,7 +1078,7 @@ private:
 
 			//apos
 			attributeDescriptions[0].binding = 0;
-			attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+			attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
 			attributeDescriptions[0].location = 0;
 			attributeDescriptions[0].offset = offsetof(Vertex, aPos);
 
@@ -1030,6 +1090,12 @@ private:
 
 			return attributeDescriptions;
 		}
+	};
+
+	std::vector<Vertex> vertices = {
+		{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f} },
+		{{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f} },
+		{{ -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
 	};
 };
 int main()

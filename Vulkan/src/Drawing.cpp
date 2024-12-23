@@ -92,17 +92,24 @@ private:
 		createSwapChainKHR();
 		createImageViews();
 		createRenderPass();
+		createDescriptorSetLayout();
 		createGraphicsPipeline();
 		createFramBuffers();
 		createCommandPool();
 		createVertexBuffer();
 		createIndicesBuffer();
+		createUniformBuffer();
 		createCommandBuffer();
 		createSyncObjects();
 	}
 
 	void cleanUpSwapChain()
 	{
+		for (int i = 0; i < MAX_FAMER_IN_FLIGHT; i++)
+		{
+			vkDestroyBuffer(m_LogicalDevice, m_UniformBuffers[i], nullptr);
+			vkFreeMemory(m_LogicalDevice, m_UniformDeviceMemory[i], nullptr);
+		}
 		for (int i = 0; i < m_Frambuffers.size(); i++)
 		{
 			vkDestroyFramebuffer(m_LogicalDevice, m_Frambuffers[i], nullptr);
@@ -131,8 +138,10 @@ private:
 		for (int i = 0; i < m_Frambuffers.size(); i++)
 		{
 			vkDestroyFramebuffer(m_LogicalDevice, m_Frambuffers[i], nullptr);
+
 		}
 		vkDestroyPipeline(m_LogicalDevice, m_GraphicsPipeline, nullptr);
+		vkDestroyDescriptorSetLayout(m_LogicalDevice, m_DescriptorSetLayout, nullptr);
 		vkDestroyRenderPass(m_LogicalDevice, m_RenderPass, nullptr);
 		for (int i = 0; i < m_SwapChainImageViews.size(); i++)
 		{
@@ -811,14 +820,13 @@ private:
 		dynamicsInfo.dynamicStateCount = 2;
 		dynamicsInfo.pDynamicStates = dynamicStates;
 
-		VkPipelineLayout pipelineLayout;
 		VkPipelineLayoutCreateInfo layoutCreateInfo{};
 		layoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		layoutCreateInfo.setLayoutCount = 0;
-		layoutCreateInfo.pSetLayouts = nullptr;
+		layoutCreateInfo.setLayoutCount = 1;
+		layoutCreateInfo.pSetLayouts = &m_DescriptorSetLayout;
 		layoutCreateInfo.pushConstantRangeCount = 0;
 		layoutCreateInfo.pPushConstantRanges = nullptr;
-		if (vkCreatePipelineLayout(m_LogicalDevice, &layoutCreateInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
+		if (vkCreatePipelineLayout(m_LogicalDevice, &layoutCreateInfo, nullptr, &m_PipelineLayout) != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to create pipelineLayout!");
 		}
@@ -836,7 +844,7 @@ private:
 		graphicsPipelineCreateInfo.pDepthStencilState = nullptr;
 		graphicsPipelineCreateInfo.pColorBlendState = &colorBlendStateCreateInfo;
 		graphicsPipelineCreateInfo.pDynamicState = &dynamicsInfo;
-		graphicsPipelineCreateInfo.layout = pipelineLayout;
+		graphicsPipelineCreateInfo.layout = m_PipelineLayout;
 		graphicsPipelineCreateInfo.renderPass = m_RenderPass;
 		graphicsPipelineCreateInfo.subpass = 0;
 		graphicsPipelineCreateInfo.basePipelineIndex = -1;
@@ -847,7 +855,7 @@ private:
 		}
 		vkDestroyShaderModule(m_LogicalDevice, vershaderModule, nullptr);
 		vkDestroyShaderModule(m_LogicalDevice, fragShaderModule, nullptr);
-		vkDestroyPipelineLayout(m_LogicalDevice, pipelineLayout, nullptr);
+		vkDestroyPipelineLayout(m_LogicalDevice, m_PipelineLayout, nullptr);
 	}
 
 	void createFramBuffers()
@@ -1246,6 +1254,7 @@ private:
 	VkDeviceMemory m_IndicesMemory;
 
 	VkDescriptorSetLayout m_DescriptorSetLayout;
+	VkPipelineLayout m_PipelineLayout;
 	std::vector<VkBuffer> m_UniformBuffers;
 	std::vector<VkDeviceMemory> m_UniformDeviceMemory;
 	std::vector<void*> m_UniformBuffersMapped;

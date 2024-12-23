@@ -10,6 +10,8 @@
 #include <algorithm>
 #include <sstream>
 #include <array>
+#include <glm/gtc/matrix_transform.hpp>
+#include <chrono>
 
 #ifdef NDEBUG
 	const bool enableValidation = false;
@@ -156,6 +158,21 @@ private:
 		vkDeviceWaitIdle(m_LogicalDevice);
 	}
 
+	void UpdateUniformBuffer(uint32_t currentFame)
+	{
+		static auto lastTime = std::chrono::high_resolution_clock().now();
+
+		auto currentTime = std::chrono::high_resolution_clock().now();
+		float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - lastTime).count();
+
+		UniformBufferObject ubo{};
+		ubo.model = glm::rotate(glm::mat4(1.0), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		ubo.perspective = glm::perspective(glm::radians(45.0f), (float)m_ImageExtent.width / (float)m_ImageExtent.height, 0.1f, 10.0f);
+		ubo.perspective[1][1] *= 1; //glm is designed for opengl which has a y coordinate invertion
+		memcpy(m_UniformBuffersMapped[currentFame], &ubo, sizeof(ubo));
+	}
+
 	void drawFrame() 
 	{
 		vkWaitForFences(m_LogicalDevice, 1, &m_InFlightFence[currentFame], VK_TRUE, UINT64_MAX);
@@ -177,6 +194,8 @@ private:
 		vkResetCommandBuffer(m_GraphicsCommandBuffer[currentFame], 0);
 		recordCommandBuffer(m_GraphicsCommandBuffer[currentFame], imageIndex);
 		
+		UpdateUniformBuffer(currentFame);
+
 		VkSubmitInfo submitInfo{};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		VkSemaphore waitSemaphores[]{ m_ImageAvaliableSemaphore[currentFame] };
@@ -1097,6 +1116,41 @@ private:
 		vkFreeMemory(m_LogicalDevice, stagingMemory, nullptr);
 	}
 
+	void createDescriptorSetLayout() 
+	{
+		VkDescriptorSetLayoutBinding binding{};
+		binding.binding = 0;
+		binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		binding.descriptorCount = 1;
+		binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		binding.pImmutableSamplers = nullptr;
+
+		VkDescriptorSetLayoutCreateInfo createInfo{};
+		createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		createInfo.bindingCount = 1;
+		createInfo.pBindings = &binding;
+
+		if (vkCreateDescriptorSetLayout(m_LogicalDevice, &createInfo, nullptr, &m_DescriptorSetLayout) != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to create DescriptorSetLayout!");
+		}
+	}
+
+	void createUniformBuffer()
+	{
+		VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+		m_UniformBuffers.resize(MAX_FAMER_IN_FLIGHT);
+		m_UniformDeviceMemory.resize(MAX_FAMER_IN_FLIGHT);
+		m_UniformBuffersMapped.resize(MAX_FAMER_IN_FLIGHT);
+
+		for (size_t i = 0; i < MAX_FAMER_IN_FLIGHT; i++)
+		{
+			createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+				VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, m_UniformBuffers[i], m_UniformDeviceMemory[i]);
+			vkMapMemory(m_LogicalDevice, m_UniformDeviceMemory[i], 0, bufferSize, 0, &m_UniformBuffersMapped[i]);
+		}
+	}
+
 private:
 #ifdef NDEBUG
 
@@ -1170,6 +1224,13 @@ private:
 		}
 	};
 
+	struct UniformBufferObject
+	{
+		glm::mat4 model;
+		glm::mat4 view;
+		glm::mat4 perspective;
+	} ubo;
+
 	std::vector<Vertex> vertices = {
 		{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f} },
 		{{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
@@ -1183,6 +1244,11 @@ private:
 
 	VkBuffer m_IndicesBuffer;
 	VkDeviceMemory m_IndicesMemory;
+
+	VkDescriptorSetLayout m_DescriptorSetLayout;
+	std::vector<VkBuffer> m_UniformBuffers;
+	std::vector<VkDeviceMemory> m_UniformDeviceMemory;
+	std::vector<void*> m_UniformBuffersMapped;
 };
 int main()
 {

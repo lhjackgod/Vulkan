@@ -12,6 +12,7 @@
 #include <array>
 #include <glm/gtc/matrix_transform.hpp>
 #include <chrono>
+#include <stb_image.h>
 const static int MAX_FAMER_IN_FLIGHT = 2;
 #ifdef NDEBUG
 	const bool enableValidation = false;
@@ -1048,22 +1049,44 @@ private:
 		vkBindBufferMemory(m_LogicalDevice, buffer, deviceMemory, 0);
 	}
 
+	VkCommandBuffer beginSignleTimeCommands()
+	{
+		VkCommandBuffer signleCommandBuffer;
+		VkCommandBufferAllocateInfo signleCommandBufferAllocateInfo{};
+		signleCommandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		signleCommandBufferAllocateInfo.commandPool = m_GrapgicsCommandPool;
+		signleCommandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		signleCommandBufferAllocateInfo.commandBufferCount = 1;
+
+		if (vkAllocateCommandBuffers(m_LogicalDevice, &signleCommandBufferAllocateInfo, &signleCommandBuffer) != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to create signle command buffer!");
+		}
+		VkCommandBufferBeginInfo commandBufferBeginInfo{};
+		commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+		vkBeginCommandBuffer(signleCommandBuffer, &commandBufferBeginInfo);
+		return signleCommandBuffer; // you can do something by using this commandbuffer
+	}
+
+	void endSignelTimeCommands(VkCommandBuffer commandBuffer)
+	{
+		vkEndCommandBuffer(commandBuffer);
+		VkSubmitInfo submitInfo{};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &commandBuffer;
+
+		vkQueueSubmit(m_GraphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+		vkQueueWaitIdle(m_GraphicsQueue);
+
+		vkFreeCommandBuffers(m_LogicalDevice, m_GrapgicsCommandPool, 1, &commandBuffer);
+	}
+
 	void copyBuffer(VkBuffer& srcBuffer, VkBuffer& dstBuffer, VkDeviceSize& size)
 	{
-		VkCommandBufferAllocateInfo commandBufferAllocateInfo{};
-		commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		commandBufferAllocateInfo.commandPool = m_GrapgicsCommandPool;
-		commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		commandBufferAllocateInfo.commandBufferCount = 1;
-
-		VkCommandBuffer tempCommandBuffer;
-		vkAllocateCommandBuffers(m_LogicalDevice, &commandBufferAllocateInfo, &tempCommandBuffer);
-
-		VkCommandBufferBeginInfo temCommandBufferBeginInfo{};
-		temCommandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		temCommandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-		vkBeginCommandBuffer(tempCommandBuffer, &temCommandBufferBeginInfo);
+		VkCommandBuffer tempCommandBuffer = beginSignleTimeCommands();
 
 		VkBufferCopy copyRegion{};
 		copyRegion.srcOffset = 0;
@@ -1071,16 +1094,7 @@ private:
 		copyRegion.size = size;
 		vkCmdCopyBuffer(tempCommandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 
-		vkEndCommandBuffer(tempCommandBuffer);
-
-		VkSubmitInfo submitInfo{};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &tempCommandBuffer;
-
-		vkQueueSubmit(m_GraphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-		vkQueueWaitIdle(m_GraphicsQueue);
-		vkFreeCommandBuffers(m_LogicalDevice, m_GrapgicsCommandPool, 1, &tempCommandBuffer);
+		endSignelTimeCommands(tempCommandBuffer);
 	}
 
 	void createVertexBuffer()
@@ -1216,6 +1230,28 @@ private:
 
 			vkUpdateDescriptorSets(m_LogicalDevice, 1, &writeDescriptorSet, 0, nullptr);
 		}
+	}
+
+	void createTextureImage()
+	{
+		int width, height, channel;
+		stbi_uc* data = stbi_load("textures/texture.jpg", &width, &height, &channel, 0);
+		VkDeviceSize dataSize = width * height * channel;
+
+		if (!data)
+		{
+			throw std::runtime_error("error load texture!");
+		}
+		VkBuffer stagingBuffer;
+		VkDeviceMemory stagingBufferMemory;
+
+		createBuffer(dataSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+		void* imageData;
+		vkMapMemory(m_LogicalDevice, stagingBufferMemory, 0, dataSize, 0, &imageData);
+		memcpy(imageData, data, dataSize);
+		vkUnmapMemory(m_LogicalDevice, stagingBufferMemory);
+		stbi_image_free(data);
 	}
 
 private:

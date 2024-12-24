@@ -100,6 +100,7 @@ private:
 		createVertexBuffer();
 		createIndicesBuffer();
 		createUniformBuffer();
+		createTextureImage();
 		createDescriptorPool();
 		createDescriptorSet();
 		createCommandBuffer();
@@ -122,6 +123,8 @@ private:
 
 	void clearUp()
 	{
+		vkDestroyImage(m_LogicalDevice, m_TextureImage, nullptr);
+		vkFreeMemory(m_LogicalDevice, m_TextureImageMemory, nullptr);
 		vkDestroyDescriptorPool(m_LogicalDevice, m_DescriptorPool, nullptr);
 		for (int i = 0; i < MAX_FAMER_IN_FLIGHT; i++)
 		{
@@ -1232,11 +1235,120 @@ private:
 		}
 	}
 
+	void createImage2D(const int& width, const int& height,
+		const VkFormat& imageFormat, const VkImageTiling& tilling,
+		const VkImageUsageFlags& usage, const VkMemoryPropertyFlagBits& properties, VkImage& image, VkDeviceMemory& imageMemory)
+	{
+		VkImageCreateInfo imageCreateInfo{};
+		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+		imageCreateInfo.format = imageFormat;
+		imageCreateInfo.extent.width = width;
+		imageCreateInfo.extent.height = height;
+		imageCreateInfo.extent.depth = 1;
+		imageCreateInfo.mipLevels = 1;
+		imageCreateInfo.arrayLayers = 1;
+		imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+		imageCreateInfo.tiling = tilling;
+		imageCreateInfo.usage = usage;
+		imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+		if (vkCreateImage(m_LogicalDevice, &imageCreateInfo, nullptr, &image) != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to create Image");
+		}
+
+		VkMemoryRequirements requireMents;
+		vkGetImageMemoryRequirements(m_LogicalDevice, image, &requireMents);
+
+		VkMemoryAllocateInfo memoryAllocateInfo{};
+		memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		memoryAllocateInfo.allocationSize = requireMents.size;
+		memoryAllocateInfo.memoryTypeIndex = getMemoryTypeIndex(requireMents.memoryTypeBits, properties);
+
+		if (vkAllocateMemory(m_LogicalDevice, &memoryAllocateInfo, nullptr, &imageMemory) != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to allocate image memory!");
+		}
+		vkBindImageMemory(m_LogicalDevice, image, imageMemory, 0);
+	}
+
+	void copyBufferToImage(VkBuffer srcBuffer,VkImage dstImage, uint32_t width, uint32_t height)
+	{
+		VkCommandBuffer copyCommandBuffer = beginSignleTimeCommands();
+
+		VkBufferImageCopy copy{};
+		copy.bufferOffset = 0;
+		copy.bufferImageHeight = 0;
+		copy.bufferRowLength = 0;
+		copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		copy.imageSubresource.baseArrayLayer = 0;
+		copy.imageSubresource.layerCount = 1;
+		copy.imageSubresource.mipLevel = 0;
+		copy.imageOffset = { 0,0,0 };
+		copy.imageExtent = { width, height, 1 };
+
+		vkCmdCopyBufferToImage(copyCommandBuffer, srcBuffer, dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+
+		endSignelTimeCommands(copyCommandBuffer);
+	}
+
+	void transilationLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout)
+	{
+		VkCommandBuffer translateLayoutCommandBuffer = beginSignleTimeCommands();
+
+		VkImageMemoryBarrier barrier{};
+		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		barrier.oldLayout = oldLayout;
+		barrier.newLayout = newLayout;
+		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.image = image;
+		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		barrier.subresourceRange.baseArrayLayer = 0;
+		barrier.subresourceRange.baseMipLevel = 0;
+		barrier.subresourceRange.layerCount = 1;
+		barrier.subresourceRange.levelCount = 1;
+		barrier.srcAccessMask = 0;
+		barrier.dstAccessMask = 0;
+
+		VkPipelineStageFlags srcStageFlags;
+		VkPipelineStageFlags dstStageFlags;
+		if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+		{
+			barrier.srcAccessMask = 0;
+			barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+			srcStageFlags = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+			dstStageFlags = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		}
+		else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+		{
+			barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+			srcStageFlags = VK_PIPELINE_STAGE_TRANSFER_BIT;
+			dstStageFlags = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		}
+		else
+		{
+			throw std::invalid_argument("unsopported layout transition!");
+		}
+		vkCmdPipelineBarrier(translateLayoutCommandBuffer, srcStageFlags, dstStageFlags,
+			0,
+			0, nullptr,
+			0, nullptr,
+			1, &barrier
+		);
+		endSignelTimeCommands(translateLayoutCommandBuffer);
+	}
+
 	void createTextureImage()
 	{
 		int width, height, channel;
-		stbi_uc* data = stbi_load("textures/texture.jpg", &width, &height, &channel, 0);
-		VkDeviceSize dataSize = width * height * channel;
+		stbi_uc* data = stbi_load("textures/texture.jpg", &width, &height, &channel, STBI_rgb_alpha);
+		VkDeviceSize dataSize = width * height * 4;
 
 		if (!data)
 		{
@@ -1252,6 +1364,18 @@ private:
 		memcpy(imageData, data, dataSize);
 		vkUnmapMemory(m_LogicalDevice, stagingBufferMemory);
 		stbi_image_free(data);
+
+		createImage2D(width, height, VK_FORMAT_R8G8B8A8_SRGB, 
+			VK_IMAGE_TILING_LINEAR, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
+			m_TextureImage, m_TextureImageMemory);
+
+		transilationLayout(m_TextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);;
+		copyBufferToImage(stagingBuffer, m_TextureImage, width, height);
+		transilationLayout(m_TextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+		vkDestroyBuffer(m_LogicalDevice, stagingBuffer, nullptr);
+		vkFreeMemory(m_LogicalDevice, stagingBufferMemory, nullptr);
 	}
 
 private:
@@ -1357,6 +1481,8 @@ private:
 
 	VkDescriptorPool m_DescriptorPool;
 	std::vector<VkDescriptorSet> m_DescriptorSets;
+	VkImage m_TextureImage;
+	VkDeviceMemory m_TextureImageMemory;
 };
 int main()
 {

@@ -101,6 +101,7 @@ private:
 		createIndicesBuffer();
 		createUniformBuffer();
 		createTextureImage();
+		createTextureImageView();
 		createDescriptorPool();
 		createDescriptorSet();
 		createCommandBuffer();
@@ -124,6 +125,7 @@ private:
 	void clearUp()
 	{
 		vkDestroyImage(m_LogicalDevice, m_TextureImage, nullptr);
+		vkDestroyImageView(m_LogicalDevice, m_TextureImageView, nullptr);
 		vkFreeMemory(m_LogicalDevice, m_TextureImageMemory, nullptr);
 		vkDestroyDescriptorPool(m_LogicalDevice, m_DescriptorPool, nullptr);
 		for (int i = 0; i < MAX_FAMER_IN_FLIGHT; i++)
@@ -612,32 +614,7 @@ private:
 		m_SwapChainImageViews.resize(m_SwapChainImages.size());
 		for (int i = 0; i < m_SwapChainImageViews.size(); i++)
 		{
-			VkImageViewCreateInfo imageViewInfo{};
-			imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-			imageViewInfo.image = m_SwapChainImages[i];
-			imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			imageViewInfo.format = m_ImageFormat;
-
-			VkComponentMapping componentMapping{};
-			componentMapping.r = VK_COMPONENT_SWIZZLE_R;
-			componentMapping.g = VK_COMPONENT_SWIZZLE_G;
-			componentMapping.b = VK_COMPONENT_SWIZZLE_B;
-			componentMapping.a = VK_COMPONENT_SWIZZLE_A;
-
-			imageViewInfo.components = componentMapping;
-			VkImageSubresourceRange imageSubsourceRange{};
-			imageSubsourceRange.baseArrayLayer = 0;
-			imageSubsourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			imageSubsourceRange.baseMipLevel = 0;
-			imageSubsourceRange.levelCount = 1;
-			imageSubsourceRange.layerCount = 1;
-
-			imageViewInfo.subresourceRange = imageSubsourceRange;
-
-			if (vkCreateImageView(m_LogicalDevice, &imageViewInfo, nullptr, &m_SwapChainImageViews[i]))
-			{
-				throw std::runtime_error("failed to create ImageView!");
-			}
+			m_SwapChainImageViews[i] = createImageView(m_SwapChainImages[i], m_ImageFormat);
 		}
 	}
 
@@ -1378,6 +1355,36 @@ private:
 		vkFreeMemory(m_LogicalDevice, stagingBufferMemory, nullptr);
 	}
 
+	VkImageView createImageView(VkImage image, VkFormat imageFormat)
+	{
+		VkImageView imageView;
+		VkImageViewCreateInfo imageViewCreateInfo{};
+		imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		imageViewCreateInfo.image = image;
+		imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		imageViewCreateInfo.format = imageFormat;
+		imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+		imageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+		imageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+		imageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+		imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+		imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+		imageViewCreateInfo.subresourceRange.layerCount = 1;
+		imageViewCreateInfo.subresourceRange.levelCount = 1;
+		
+		if (vkCreateImageView(m_LogicalDevice, &imageViewCreateInfo, nullptr, &imageView) != VK_SUCCESS)
+		{
+			throw std::runtime_error("error to create image view");
+		}
+		return imageView;
+	}
+
+	void createTextureImageView()
+	{
+		m_TextureImageView = createImageView(m_TextureImage, VK_FORMAT_R8G8B8A8_SRGB);
+	}
+
 private:
 #ifdef NDEBUG
 
@@ -1482,6 +1489,7 @@ private:
 	VkDescriptorPool m_DescriptorPool;
 	std::vector<VkDescriptorSet> m_DescriptorSets;
 	VkImage m_TextureImage;
+	VkImageView m_TextureImageView;
 	VkDeviceMemory m_TextureImageMemory;
 };
 int main()

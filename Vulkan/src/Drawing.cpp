@@ -724,12 +724,12 @@ private:
 
 		VkPipelineShaderStageCreateInfo shaderStage[2] = { vershaderStageCreateInfo, fragShaderStageCreateInfo };
 		
-		std::array<VkVertexInputAttributeDescription, 2> vertexAttributes = Vertex::getAttributeDescription();
+		std::array<VkVertexInputAttributeDescription, 3> vertexAttributes = Vertex::getAttributeDescription();
 		VkVertexInputBindingDescription vertexBinding = Vertex::getBindingDescription();
 
 		VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo{};
 		vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-		vertexInputStateCreateInfo.vertexAttributeDescriptionCount = 2;
+		vertexInputStateCreateInfo.vertexAttributeDescriptionCount = (uint32_t)vertexAttributes.size();
 		vertexInputStateCreateInfo.pVertexAttributeDescriptions = vertexAttributes.data();
 		vertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
 		vertexInputStateCreateInfo.pVertexBindingDescriptions = &vertexBinding;
@@ -1139,10 +1139,18 @@ private:
 		binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 		binding.pImmutableSamplers = nullptr;
 
+		VkDescriptorSetLayoutBinding bindingImage{};
+		bindingImage.binding = 1;
+		bindingImage.descriptorCount = 1;
+		bindingImage.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		bindingImage.pImmutableSamplers = nullptr;
+		bindingImage.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+		std::array<VkDescriptorSetLayoutBinding, 2> bindings = { binding, bindingImage };
 		VkDescriptorSetLayoutCreateInfo createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		createInfo.bindingCount = 1;
-		createInfo.pBindings = &binding;
+		createInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+		createInfo.pBindings = bindings.data();
 
 		if (vkCreateDescriptorSetLayout(m_LogicalDevice, &createInfo, nullptr, &m_DescriptorSetLayout) != VK_SUCCESS)
 		{
@@ -1167,15 +1175,17 @@ private:
 
 	void createDescriptorPool()
 	{
-		VkDescriptorPoolSize poolSize{};
-		poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		poolSize.descriptorCount = static_cast<uint32_t>(MAX_FAMER_IN_FLIGHT);
+		std::array<VkDescriptorPoolSize, 2> poolSize{};
+		poolSize[0].descriptorCount = static_cast<uint32_t>(MAX_FAMER_IN_FLIGHT);
+		poolSize[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		poolSize[1].descriptorCount = static_cast<uint32_t>(MAX_FAMER_IN_FLIGHT);
+		poolSize[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 
 		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo{};
 		descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 		descriptorPoolCreateInfo.maxSets = static_cast<uint32_t>(MAX_FAMER_IN_FLIGHT);
-		descriptorPoolCreateInfo.poolSizeCount = 1;
-		descriptorPoolCreateInfo.pPoolSizes = &poolSize;
+		descriptorPoolCreateInfo.poolSizeCount = (uint32_t)poolSize.size();
+		descriptorPoolCreateInfo.pPoolSizes = poolSize.data();
 
 		if (vkCreateDescriptorPool(m_LogicalDevice, &descriptorPoolCreateInfo, nullptr, &m_DescriptorPool) != VK_SUCCESS)
 		{
@@ -1203,18 +1213,29 @@ private:
 			bufferInfo.offset = 0;
 			bufferInfo.range = sizeof(UniformBufferObject);
 
-			VkWriteDescriptorSet writeDescriptorSet{};
-			writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			writeDescriptorSet.dstSet = m_DescriptorSets[i];
-			writeDescriptorSet.dstBinding = 0;
-			writeDescriptorSet.dstArrayElement = 0;
-			writeDescriptorSet.descriptorCount = 1;
-			writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-			
-			writeDescriptorSet.pBufferInfo = &bufferInfo;
-	
+			VkDescriptorImageInfo imageInfo{};
+			imageInfo.sampler = m_TextureSampler;
+			imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			imageInfo.imageView = m_TextureImageView;
 
-			vkUpdateDescriptorSets(m_LogicalDevice, 1, &writeDescriptorSet, 0, nullptr);
+			std::array<VkWriteDescriptorSet, 2> writeDescriptorSet{};
+			writeDescriptorSet[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writeDescriptorSet[0].dstSet = m_DescriptorSets[i];
+			writeDescriptorSet[0].dstBinding = 0;
+			writeDescriptorSet[0].dstArrayElement = 0;
+			writeDescriptorSet[0].descriptorCount = 1;
+			writeDescriptorSet[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			writeDescriptorSet[0].pBufferInfo = &bufferInfo;
+
+			writeDescriptorSet[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writeDescriptorSet[1].dstSet = m_DescriptorSets[i];
+			writeDescriptorSet[1].dstBinding = 1;
+			writeDescriptorSet[1].dstArrayElement = 0;
+			writeDescriptorSet[1].descriptorCount = 1;
+			writeDescriptorSet[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			writeDescriptorSet[1].pImageInfo = &imageInfo;
+			
+			vkUpdateDescriptorSets(m_LogicalDevice, (uint32_t)writeDescriptorSet.size(), writeDescriptorSet.data(), 0, nullptr);
 		}
 	}
 
@@ -1463,7 +1484,7 @@ private:
 	{
 		glm::vec2 aPos;
 		glm::vec3 aColor;
-
+		glm::vec2 aTexCoord;
 		static VkVertexInputBindingDescription getBindingDescription()
 		{
 			VkVertexInputBindingDescription vertexInputBindingDescription{};
@@ -1473,9 +1494,9 @@ private:
 			return vertexInputBindingDescription;
 		}
 
-		static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescription()
+		static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescription()
 		{
-			std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+			std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
 
 			//apos
 			attributeDescriptions[0].binding = 0;
@@ -1489,6 +1510,11 @@ private:
 			attributeDescriptions[1].location = 1;
 			attributeDescriptions[1].offset = offsetof(Vertex, aColor);
 
+			attributeDescriptions[2].binding = 0;
+			attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+			attributeDescriptions[2].location = 2;
+			attributeDescriptions[2].offset = offsetof(Vertex, aTexCoord);
+
 			return attributeDescriptions;
 		}
 	};
@@ -1501,10 +1527,10 @@ private:
 	};
 
 	std::vector<Vertex> vertices = {
-		{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f} },
-		{{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-		{{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f} },
-		{{ -0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
+		{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+		{{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+		{{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f} },
+		{{ -0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
 	};
 
 	std::vector<uint32_t> m_Indices = {
